@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="es-EC">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E4A34">
+<title>Caja Omaguas San Francisco</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --verde-900:#122B1D;
+  --verde-800:#1E4A34;
+  --verde-700:#2C6B49;
+  --verde-500:#5BA37A;
+  --verde-100:#DCEEE2;
+  --oro-500:#D4A24C;
+  --oro-300:#E8C583;
+  --rio-600:#3B7EA1;
+  --rio-100:#DCEBF2;
+  --crema:#F7F4EC;
+  --crema-2:#EFEADB;
+  --tinta:#1F2A22;
+  --tinta-suave:#5A6B5E;
+  --rojo:#B5473A;
+  --borde:#D8D0BC;
+  --radio:14px;
+  --sombra:0 2px 10px rgba(18,43,29,.08);
+  --font-disp:'Fraunces',Georgia,'Times New Roman',serif;
+  --font-body:'Work Sans',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--font-body);
+  background:var(--crema);
+  color:var(--tinta);
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+h1,h2,h3,.disp{font-family:var(--font-disp);font-weight:600;letter-spacing:-0.01em}
+button{font-family:inherit}
+a{color:var(--verde-700)}
+
+/* ---------- App shell ---------- */
+#app{display:flex;min-height:100vh}
+.sidebar{
+  width:230px;flex-shrink:0;background:var(--verde-900);color:var(--crema);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.brand{padding:22px 18px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand .ring-logo{width:38px;height:38px;margin-bottom:8px}
+.brand h1{font-size:16px;line-height:1.25;margin:0 0 2px;color:#fff}
+.brand .sub{font-size:11px;color:var(--oro-300);letter-spacing:.04em;text-transform:uppercase}
+nav.tabs{flex:1;padding:10px 10px}
+nav.tabs button{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:none;border:none;color:rgba(247,244,236,.78);
+  padding:10px 12px;border-radius:10px;font-size:14px;cursor:pointer;margin-bottom:2px;
+  transition:background .15s;
+}
+nav.tabs button:hover{background:rgba(255,255,255,.06)}
+nav.tabs button.active{background:var(--verde-700);color:#fff;font-weight:600}
+nav.tabs .icon{width:18px;text-align:center;font-size:15px}
+.status-box{margin:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.06);font-size:11.5px;color:rgba(247,244,236,.75)}
+.status-box .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.dot.on{background:#79C99B}
+.dot.off{background:#D4A24C}
+
+main{flex:1;min-width:0;padding:26px 32px 60px;max-width:1180px}
+.topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+.topbar h2{margin:0;font-size:26px}
+.topbar p.desc{margin:4px 0 0;color:var(--tinta-suave);font-size:14px;max-width:620px}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;border:none;border-radius:10px;
+  padding:10px 16px;font-size:13.5px;font-weight:600;cursor:pointer;transition:transform .1s, box-shadow .15s;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--verde-700);color:#fff}
+.btn-primary:hover{background:var(--verde-800)}
+.btn-gold{background:var(--oro-500);color:var(--verde-900)}
+.btn-gold:hover{background:var(--oro-300)}
+.btn-ghost{background:transparent;border:1.5px solid var(--borde);color:var(--tinta)}
+.btn-ghost:hover{background:var(--crema-2)}
+.btn-danger{background:#fff;border:1.5px solid var(--rojo);color:var(--rojo)}
+.btn-sm{padding:6px 11px;font-size:12.5px;border-radius:8px}
+
+/* ---------- Cards / grids ---------- */
+.grid{display:grid;gap:16px}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.grid-2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:900px){.grid-4{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
+
+.card{background:#fff;border:1px solid var(--borde);border-radius:var(--radio);box-shadow:var(--sombra);padding:18px}
+.stat-card{background:#fff;border:1px solid var(--borde);border-radius:var(--radio);padding:16px 18px;position:relative;overflow:hidden}
+.stat-card .lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--tinta-suave);font-weight:600}
+.stat-card .val{font-family:var(--font-disp);font-size:26px;margin-top:6px;color:var(--verde-900)}
+.stat-card .sub{font-size:12px;color:var(--tinta-suave);margin-top:4px}
+.stat-card.warn .val{color:var(--rojo)}
+.stat-card::after{content:"";position:absolute;right:-18px;top:-18px;width:70px;height:70px;border-radius:50%;background:var(--verde-100);opacity:.6;z-index:0}
+.stat-card.warn::after{background:#F6E3DF}
+.stat-card *{position:relative;z-index:1}
+
+/* ---------- Tables ---------- */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;padding:9px 10px;background:var(--crema-2);color:var(--verde-900);font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;border-bottom:2px solid var(--borde)}
+td{padding:9px 10px;border-bottom:1px solid var(--borde)}
+tr:hover td{background:var(--verde-100)}
+.table-wrap{overflow-x:auto;border-radius:var(--radio);border:1px solid var(--borde)}
+.table-wrap table{border-radius:var(--radio);overflow:hidden}
+
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.02em}
+.badge.ok{background:var(--verde-100);color:var(--verde-800)}
+.badge.warn{background:#FBEBD9;color:#8A5A17}
+.badge.bad{background:#F6DEDA;color:var(--rojo)}
+.badge.info{background:var(--rio-100);color:var(--rio-600)}
+.badge.neutral{background:#EEEEEE;color:#555}
+
+/* ---------- Forms ---------- */
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--verde-900);margin-bottom:5px}
+.field .hint{font-size:11px;color:var(--tinta-suave);margin-top:3px}
+input,select,textarea{
+  width:100%;padding:9px 11px;border:1.5px solid var(--borde);border-radius:9px;
+  font-size:13.5px;font-family:inherit;background:#fff;color:var(--tinta);
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--verde-500);outline-offset:1px;border-color:var(--verde-500)}
+textarea{resize:vertical;min-height:70px}
+
+.modal-bg{position:fixed;inset:0;background:rgba(18,43,29,.55);display:none;align-items:flex-start;justify-content:center;padding:26px 16px;overflow-y:auto;z-index:100}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:16px;max-width:640px;width:100%;padding:24px 26px 26px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.modal h3{margin:0 0 4px}
+.modal .modal-desc{font-size:13px;color:var(--tinta-suave);margin-bottom:16px}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+
+.tabs-row{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;border-bottom:1px solid var(--borde)}
+.tabs-row button{
+  background:none;border:none;padding:9px 14px;font-size:13.5px;font-weight:600;color:var(--tinta-suave);
+  cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1px;
+}
+.tabs-row button.active{color:var(--verde-800);border-color:var(--oro-500)}
+
+.empty{text-align:center;padding:50px 20px;color:var(--tinta-suave)}
+.empty .big{font-size:34px;margin-bottom:8px}
+
+.toast-wrap{position:fixed;bottom:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--verde-900);color:#fff;padding:11px 16px;border-radius:10px;font-size:13.5px;box-shadow:0 6px 18px rgba(0,0,0,.25);animation:slidein .2s ease}
+.toast.err{background:var(--rojo)}
+@keyframes slidein{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+.searchbar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.searchbar input,.searchbar select{max-width:260px}
+
+.pill-nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.pill-nav button{background:#fff;border:1.5px solid var(--borde);padding:7px 13px;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--tinta-suave)}
+.pill-nav button.active{background:var(--verde-800);border-color:var(--verde-800);color:#fff}
+
+/* mobile top nav */
+.mobile-top{display:none}
+.hamburger{display:none}
+
+@media(max-width:880px){
+  #app{flex-direction:column}
+  .sidebar{
+    position:fixed;left:0;top:0;bottom:0;width:250px;z-index:150;
+    transform:translateX(-100%);transition:transform .2s ease;
+  }
+  .sidebar.open{transform:translateX(0)}
+  .mobile-top{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--verde-900);color:#fff;padding:12px 14px;position:sticky;top:0;z-index:120;
+  }
+  .mobile-top .brand2{display:flex;align-items:center;gap:8px;font-family:var(--font-disp);font-size:15px}
+  .hamburger{display:block;background:none;border:none;color:#fff;font-size:20px;cursor:pointer}
+  main{padding:18px 14px 50px}
+  .grid-4{grid-template-columns:1fr 1fr}
+  .grid-3,.grid-2{grid-template-columns:1fr}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:140;display:none}
+  .overlay.show{display:block}
+}
+
+/* Print styles for documents */
+.print-only{display:none}
+@media print{
+  body *{visibility:hidden}
+  #printArea{display:block!important;visibility:visible;position:absolute;left:0;top:0;width:100%;padding:20px;background:#fff}
+  #printArea *{visibility:visible}
+  .no-print{display:none!important}
+}
+#printArea{display:none}
+.doc-page{font-family:'Georgia',serif;color:#222;line-height:1.55;font-size:13.5px;max-width:760px;margin:0 auto}
+.doc-page h2{text-align:center;font-family:var(--font-disp);margin-bottom:2px}
+.doc-page .doc-sub{text-align:center;color:#555;font-size:12px;margin-bottom:18px}
+.doc-page table{margin:14px 0}
+.doc-page td,.doc-page th{border:1px solid #999;padding:6px 8px;font-size:12.5px}
+.doc-line{border-bottom:1px solid #333;display:inline-block;min-width:160px;padding:0 4px}
+.doc-signs{display:flex;justify-content:space-between;margin-top:60px;gap:30px}
+.doc-signs div{flex:1;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:12px}
+
+.leaf-divider{height:1px;background:linear-gradient(90deg,transparent,var(--oro-500),transparent);margin:24px 0}
+.helptext{font-size:12.5px;color:var(--tinta-suave);background:var(--verde-100);border-radius:10px;padding:10px 13px;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<div id="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <svg class="ring-logo" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#D4A24C" stroke-width="2.4"/><circle cx="20" cy="20" r="11" fill="none" stroke="#5BA37A" stroke-width="2.4"/><circle cx="20" cy="20" r="4" fill="#D4A24C"/></svg>
+      <h1>Caja Omaguas<br>San Francisco</h1>
+      <div class="sub">Ahorro &amp; Crédito Comunitario</div>
+    </div>
+    <nav class="tabs" id="navTabs"></nav>
+    <div class="status-box" id="statusBox">
+      <span class="dot on" id="connDot"></span><span id="connTxt">Conectado</span><br>
+      <span id="lastSaveTxt" style="opacity:.8">Datos guardados en este dispositivo</span>
+    </div>
+  </aside>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+    <div class="mobile-top">
+      <button class="hamburger" onclick="openSidebar()">☰</button>
+      <div class="brand2">🌿 Caja OSF</div>
+      <span id="connDotMobile" style="font-size:11px">●</span>
+    </div>
+    <main id="mainContent"></main>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<div id="printArea"></div>
+
+<script>
+/* =========================================================================
+   CAJA DE AHORRO Y CRÉDITO — OMAGUAS "SAN FRANCISCO"
+   Aplicación offline-first. Todos los datos se guardan en este dispositivo
+   (localStorage). No requiere internet para funcionar. El respaldo/],
+   restauración permite compartir datos entre dispositivos cuando haya señal.
+   ========================================================================= */
+
+const DB_KEY = 'cajaOSF_v1';
+const CFG_DEFAULT = {
+  aporteInicial: 60,
+  aporteMensual: 1,
+  aporteMaximo: 100,
+  tasaSocio: 12,       // % anual
+  tasaNoSocio: 15,     // % anual
+  montoMin: 100,
+  montoMaxSocio: 1000,
+  montoMaxNoSocio: 500,
+  moraDiaria: 0.25,
+  desgravamenPorMes: 0.25,
+  tasaAhorro: 3,        // % anual
+  ahorroMinimo: 100,
+  ahorroPlazoMinMeses: 12,
+  multaAtraso: 0.25,
+  multaInasistencia: 5,
+  multaDesorden: 1,
+  nombreCaja: 'CAJA DE AHORRO Y CRÉDITO OMAGUAS "SAN FRANCISCO"',
+  comunidad: 'Omagua San Francisco',
+  parroquia: 'Enokanqui',
+  canton: 'La Joya de los Sachas',
+  provincia: 'Orellana'
+};
+
+function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function fmt(n){ return 'US$ ' + (Number(n)||0).toLocaleString('es-EC',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtDate(d){ if(!d) return '—'; const dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString('es-EC',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ---------- Estado global ---------- */
+let DB = loadDB();
+let currentTab = 'dashboard';
+let printAfterLoad = false;
+
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(DB_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      parsed.config = Object.assign({}, CFG_DEFAULT, parsed.config||{});
+      parsed.socios = parsed.socios||[];
+      parsed.creditos = parsed.creditos||[];
+      parsed.ahorros = parsed.ahorros||[];
+      parsed.movAhorros = parsed.movAhorros||[];
+      parsed.multas = parsed.multas||[];
+      parsed.fondos = Object.assign({ social:0, desgravamen:0, riesgos:0 }, parsed.fondos||{});
+      return parsed;
+    }
+  }catch(e){ console.error('Error cargando datos', e); }
+  return { socios:[], creditos:[], ahorros:[], movAhorros:[], multas:[], fondos:{social:0,desgravamen:0,riesgos:0}, config: Object.assign({},CFG_DEFAULT) };
+}
+function saveDB(){
+  localStorage.setItem(DB_KEY, JSON.stringify(DB));
+  const t = document.getElementById('lastSaveTxt');
+  if(t) t.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit'});
+}
+
+/* ---------- Navegación ---------- */
+const TABS = [
+  {id:'dashboard', label:'Panel General', icon:'🏠'},
+  {id:'socios', label:'Socios', icon:'🧑‍🌾'},
+  {id:'aportes', label:'Aportes de Capital', icon:'🪙'},
+  {id:'ahorros', label:'Ahorros', icon:'💧'},
+  {id:'creditos', label:'Créditos', icon:'🌱'},
+  {id:'multas', label:'Multas y Asambleas', icon:'⚖️'},
+  {id:'documentos', label:'Documentos', icon:'📄'},
+  {id:'config', label:'Configuración', icon:'⚙️'},
+  {id:'respaldo', label:'Respaldo de datos', icon:'🔄'},
+];
+
+function renderNav(){
+  const nav = document.getElementById('navTabs');
+  nav.innerHTML = TABS.map(t=>`<button class="${t.id===currentTab?'active':''}" onclick="goTab('${t.id}')"><span class="icon">${t.icon}</span> ${t.label}</button>`).join('');
+}
+function goTab(id){ currentTab = id; closeSidebar(); render(); window.scrollTo(0,0); }
+function openSidebar(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('show'); }
+function closeSidebar(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('show'); }
+
+function toast(msg, err){
+  const wrap = document.getElementById('toastWrap');
+  const el = document.createElement('div');
+  el.className = 'toast' + (err?' err':'');
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(), 3200);
+}
+
+/* ---------- Utilidades de negocio ---------- */
+function sociosActivos(){ return DB.socios.filter(s=>s.estado==='activo'); }
+function socioById(id){ return DB.socios.find(s=>s.id===id); }
+function totalAportesSocio(socio){ return (socio.aportes||[]).reduce((a,x)=>a+Number(x.monto),0); }
+function totalCapitalSocial(){ return DB.socios.reduce((a,s)=>a+totalAportesSocio(s),0); }
+
+function tasaParaSolicitante(esSocio){ return esSocio ? DB.config.tasaSocio : DB.config.tasaNoSocio; }
+function montoMaxParaSolicitante(esSocio){ return esSocio ? DB.config.montoMaxSocio : DB.config.montoMaxNoSocio; }
+
+function plazoSugerido(monto){
+  // según Art. 5 del reglamento de créditos
+  if(monto <= 100) return {min:1,max:3};
+  if(monto < 500) return {min:1,max:6};
+  return {min:8,max:12};
+}
+
+// Amortización sistema francés (cuota fija, capital + interés)
+function calcularAmortizacion(monto, tasaAnualPct, plazoMeses, fechaInicioISO){
+  const i = (tasaAnualPct/100)/12;
+  const n = plazoMeses;
+  let cuota;
+  if(i === 0){ cuota = monto/n; } else { cuota = monto * (i * Math.pow(1+i,n)) / (Math.pow(1+i,n)-1); }
+  let saldo = monto;
+  const tabla = [];
+  const fInicio = fechaInicioISO ? new Date(fechaInicioISO+'T00:00:00') : new Date();
+  for(let k=1;k<=n;k++){
+    const interes = saldo * i;
+    let capital = cuota - interes;
+    if(k===n){ capital = saldo; cuota = capital+interes; }
+    saldo = Math.max(0, saldo - capital);
+    const venc = new Date(fInicio); venc.setMonth(venc.getMonth()+k);
+    tabla.push({
+      numero:k,
+      fechaVenc: venc.toISOString().slice(0,10),
+      cuota: round2(capital+interes),
+      capital: round2(capital),
+      interes: round2(interes),
+      saldo: round2(saldo),
+      pagado:false, fechaPago:null, moraPagada:0
+    });
+  }
+  return tabla;
+}
+function round2(n){ return Math.round(n*100)/100; }
+
+function diasMora(fechaVencISO){
+  const venc = new Date(fechaVencISO+'T00:00:00');
+  const hoy = new Date(todayISO()+'T00:00:00');
+  const diff = Math.floor((hoy-venc)/86400000);
+  return diff>0?diff:0;
+}
+// Mora "base" antes de condonaciones o cobros manuales — depende del modo elegido para el crédito.
+function moraBaseCredito(cred){
+  const tabla = cred.tabla||[];
+  if(!tabla.length) return 0;
+  if(cred.modoMora === 'alFinalPlazo'){
+    // Solo se calcula mora cuando ya venció la ÚLTIMA cuota del plazo, sobre el saldo pendiente total.
+    const ultima = tabla[tabla.length-1];
+    const dias = diasMora(ultima.fechaVenc);
+    if(dias<=0) return 0;
+    return round2(dias * DB.config.moraDiaria);
+  }
+  // Modo por cuota (por defecto): cada cuota vencida genera mora desde su propia fecha.
+  return round2(tabla.filter(c=>!c.pagado).reduce((a,c)=>a + diasMora(c.fechaVenc)*DB.config.moraDiaria, 0));
+}
+// Mora de una cuota individual (solo aplica en modo "por cuota"; se usa para mostrar/columna en la tabla).
+function moraCuota(cuota){
+  if(cuota.pagado) return 0;
+  const dias = diasMora(cuota.fechaVenc);
+  return round2(dias * DB.config.moraDiaria);
+}
+function creditoEnMora(cred){
+  if(cred.modoMora === 'alFinalPlazo'){
+    const tabla = cred.tabla||[]; const ultima = tabla[tabla.length-1];
+    return !!ultima && !ultima.pagado && diasMora(ultima.fechaVenc)>0 && (cred.tabla||[]).some(c=>!c.pagado);
+  }
+  return (cred.tabla||[]).some(c=>!c.pagado && diasMora(c.fechaVenc)>0);
+}
+function saldoCredito(cred){
+  return round2((cred.tabla||[]).filter(c=>!c.pagado).reduce((a,c)=>a+c.capital,0));
+}
+// Mora neta pendiente de cobro: mora base, menos lo ya condonado y menos lo ya cobrado manualmente.
+function totalMoraCredito(cred){
+  const base = moraBaseCredito(cred);
+  const ajustado = base - (cred.moraCondonadaAcum||0) - (cred.moraPagadaManualAcum||0);
+  return round2(Math.max(0, ajustado));
+}
+function registrarCobroMoraManual(credId){
+  const c = DB.creditos.find(x=>x.id===credId); if(!c) return;
+  const pendiente = totalMoraCredito(c);
+  const monto = prompt(`Mora pendiente actual: ${fmt(pendiente)}\n\n¿Cuánto se cobra hoy por mora?`, pendiente.toFixed(2));
+  if(monto===null) return;
+  const val = Number(monto);
+  if(!val || val<=0){ toast('Monto inválido','err'); return; }
+  c.moraPagadaManualAcum = round2((c.moraPagadaManualAcum||0) + val);
+  c.historialMora = c.historialMora||[];
+  c.historialMora.push({id:uid('hm'), fecha:todayISO(), tipo:'cobro', monto:val, motivo:'Cobro de mora registrado manualmente'});
+  // Distribución según Art. 15: 50% fondo de crédito (no se lleva registro aparte), 25% riesgos, 25% fondo social
+  DB.fondos.social = round2(DB.fondos.social + val*0.25);
+  DB.fondos.riesgos = round2(DB.fondos.riesgos + val*0.25);
+  saveDB(); toast('Cobro de mora registrado'); openCreditoDetalle(credId);
+}
+function condonarMora(credId){
+  const c = DB.creditos.find(x=>x.id===credId); if(!c) return;
+  const pendiente = totalMoraCredito(c);
+  if(pendiente<=0){ toast('No hay mora pendiente para condonar','err'); return; }
+  const tipo = prompt('¿Condonación TOTAL o PARCIAL?\nEscriba: total  o  parcial', 'parcial');
+  if(tipo===null) return;
+  const t = tipo.trim().toLowerCase();
+  let montoCondonado = 0, detalle='';
+  if(t==='total'){
+    montoCondonado = pendiente; detalle = 'Condonación total de la mora, autorizada por la directiva';
+  } else if(t==='parcial'){
+    const pct = prompt(`Mora pendiente: ${fmt(pendiente)}\n¿Qué porcentaje se condona? (ej: 50)`, '50');
+    if(pct===null) return;
+    const p = Number(pct);
+    if(!p || p<=0 || p>100){ toast('Porcentaje inválido','err'); return; }
+    montoCondonado = round2(pendiente * p/100);
+    detalle = `Condonación parcial del ${p}% de la mora, autorizada por la directiva`;
+  } else { toast('Escriba "total" o "parcial"','err'); return; }
+  const motivo = prompt('Motivo / referencia del acuerdo (opcional):','') || '';
+  c.moraCondonadaAcum = round2((c.moraCondonadaAcum||0) + montoCondonado);
+  c.historialMora = c.historialMora||[];
+  c.historialMora.push({id:uid('hm'), fecha:todayISO(), tipo:'condonacion', monto:montoCondonado, motivo: motivo?`${detalle} — ${motivo}`:detalle});
+  saveDB(); toast(`Mora condonada: ${fmt(montoCondonado)}`); openCreditoDetalle(credId);
+}
+function cambiarModoMora(credId, valor){
+  const c = DB.creditos.find(x=>x.id===credId); if(!c) return;
+  c.modoMora = valor; saveDB(); toast('Forma de cálculo de mora actualizada'); openCreditoDetalle(credId);
+}
+/* ---- Semáforo de créditos: verde = al día, amarillo = por vencer, rojo = vencido/mora ---- */
+function proximaCuotaPendiente(cred){ return (cred.tabla||[]).find(t=>!t.pagado); }
+function creditoSemaforo(cred){
+  if(cred.estado!=='desembolsado') return 'gris';
+  if(creditoEnMora(cred)) return 'rojo';
+  const prox = proximaCuotaPendiente(cred);
+  if(!prox) return 'verde';
+  const dias = Math.ceil((new Date(prox.fechaVenc+'T00:00:00') - new Date(todayISO()+'T00:00:00'))/86400000);
+  if(dias<=5) return 'amarillo';
+  return 'verde';
+}
+function semaforoDot(color){
+  const map = {rojo:'#B5473A', amarillo:'#D4A24C', verde:'#5BA37A', gris:'#B9B9B9'};
+  return `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${map[color]||'#B9B9B9'};margin-right:6px;vertical-align:middle"></span>`;
+}
+function carteraTotal(){
+  return DB.creditos.filter(c=>c.estado==='desembolsado').reduce((a,c)=>a+saldoCredito(c),0);
+}
+// Cartera vigente = saldo de créditos desembolsados SIN cuotas vencidas (semáforo verde o amarillo).
+function carteraVigente(){
+  return round2(DB.creditos.filter(c=>c.estado==='desembolsado' && !creditoEnMora(c)).reduce((a,c)=>a+saldoCredito(c),0));
+}
+// Cartera vencida = saldo de capital de créditos con al menos una cuota vencida (semáforo rojo).
+function carteraVencida(){
+  return round2(DB.creditos.filter(c=>c.estado==='desembolsado' && creditoEnMora(c)).reduce((a,c)=>a+saldoCredito(c),0));
+}
+// Cartera de moras = total de intereses moratorios pendientes de cobro (no es capital, es la multa por atraso).
+function carteraMorasAcumuladas(){
+  return round2(DB.creditos.filter(c=>c.estado==='desembolsado').reduce((a,c)=>a+totalMoraCredito(c),0));
+}
+function carteraMora(){ return carteraVencida(); } // alias retrocompatible
+// Cartera de interés = interés total programado en todos los créditos entregados (vigentes + cancelados).
+function carteraInteres(){
+  return round2(DB.creditos.filter(c=>c.estado==='desembolsado'||c.estado==='cancelado').reduce((a,c)=>a+(c.tabla||[]).reduce((x,t)=>x+t.interes,0),0));
+}
+function interesCobradoCreditos(){
+  return round2(DB.creditos.reduce((a,c)=>a+(c.pagosRegistrados||[]).reduce((x,p)=>x+(p.interes||0),0),0));
+}
+function totalAhorros(){
+  return DB.ahorros.filter(a=>a.estado!=='cerrado').reduce((a,x)=>a+x.saldo,0);
+}
+function totalAhorroPorTipo(tipo){
+  return round2(DB.ahorros.filter(a=>a.tipo===tipo && a.estado!=='cerrado').reduce((a,x)=>a+x.saldo,0));
+}
+function totalMovAhorro(tipo){
+  return round2(DB.movAhorros.filter(m=>m.tipo===tipo).reduce((a,m)=>a+Number(m.monto),0));
+}
+
+/* ---------- Render principal ---------- */
+function render(){
+  renderNav();
+  const main = document.getElementById('mainContent');
+  const renderers = {
+    dashboard: renderDashboard,
+    socios: renderSocios,
+    aportes: renderAportes,
+    ahorros: renderAhorros,
+    creditos: renderCreditos,
+    multas: renderMultas,
+    documentos: renderDocumentos,
+    config: renderConfig,
+    respaldo: renderRespaldo,
+  };
+  main.innerHTML = '';
+  (renderers[currentTab]||renderDashboard)(main);
+}
+
+/* ================= DASHBOARD ================= */
+function renderDashboard(main){
+  const activos = sociosActivos().length;
+  const capital = totalCapitalSocial();
+  const ahorroTotal = totalAhorros();
+  const ahorroVoluntario = totalAhorroPorTipo('voluntario');
+  const ahorroPlazo = totalAhorroPorTipo('plazo');
+  const vigente = carteraVigente();
+  const vencida = carteraVencida();
+  const morasAcum = carteraMorasAcumuladas();
+  const interesCartera = carteraInteres();
+  const pendAprobar = DB.creditos.filter(c=>c.estado==='solicitado');
+  const activosDesembolsados = DB.creditos.filter(c=>c.estado==='desembolsado');
+  const nVerde = activosDesembolsados.filter(c=>creditoSemaforo(c)==='verde').length;
+  const nAmarillo = activosDesembolsados.filter(c=>creditoSemaforo(c)==='amarillo').length;
+  const nRojo = activosDesembolsados.filter(c=>creditoSemaforo(c)==='rojo').length;
+
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h2>Panel General</h2><p class="desc">Resumen en tiempo real de la ${esc(DB.config.nombreCaja)}, comunidad ${esc(DB.config.comunidad)}.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="goTab('socios');setTimeout(()=>openSocioForm(),50)">+ Nuevo socio</button>
+        <button class="btn btn-gold" onclick="goTab('creditos');setTimeout(()=>openCreditoForm(),50)">+ Nueva solicitud</button>
+      </div>
+    </div>
+
+    <h3 style="margin:0 0 10px">Socios, aportes y ahorro</h3>
+    <div class="grid grid-4" style="margin-bottom:18px">
+      <div class="stat-card"><div class="lbl">Socios activos</div><div class="val">${activos}</div><div class="sub">${DB.socios.length} registrados en total</div></div>
+      <div class="stat-card"><div class="lbl">Aportes de capital</div><div class="val">${fmt(capital)}</div><div class="sub">Capital social acumulado</div></div>
+      <div class="stat-card"><div class="lbl">Ahorro voluntario</div><div class="val">${fmt(ahorroVoluntario)}</div><div class="sub">${DB.ahorros.filter(a=>a.tipo==='voluntario'&&a.estado!=='cerrado').length} cuentas</div></div>
+      <div class="stat-card"><div class="lbl">Ahorro a plazo fijo</div><div class="val">${fmt(ahorroPlazo)}</div><div class="sub">${DB.ahorros.filter(a=>a.tipo==='plazo'&&a.estado!=='cerrado').length} cuentas</div></div>
+    </div>
+
+    <h3 style="margin:0 0 10px">Cartera de créditos <span style="font-size:12px;font-weight:500;color:var(--tinta-suave)">— semáforo: ${semaforoDot('verde')}al día &nbsp; ${semaforoDot('amarillo')}por vencer &nbsp; ${semaforoDot('rojo')}vencido</span></h3>
+    <div class="grid grid-4" style="margin-bottom:18px">
+      <div class="stat-card"><div class="lbl">${semaforoDot('verde')}Cartera vigente (al día)</div><div class="val">${fmt(vigente)}</div><div class="sub">${nVerde+nAmarillo} crédito(s) al día</div></div>
+      <div class="stat-card ${vencida>0?'warn':''}"><div class="lbl">${semaforoDot('rojo')}Cartera vencida</div><div class="val">${fmt(vencida)}</div><div class="sub">${nRojo} crédito(s) con atraso</div></div>
+      <div class="stat-card ${morasAcum>0?'warn':''}"><div class="lbl">Cartera de moras</div><div class="val">${fmt(morasAcum)}</div><div class="sub">Interés moratorio pendiente de cobro</div></div>
+      <div class="stat-card"><div class="lbl">Cartera de interés</div><div class="val">${fmt(interesCartera)}</div><div class="sub">Interés total programado en créditos</div></div>
+    </div>
+    <div class="grid grid-3" style="margin-bottom:18px">
+      <div class="stat-card"><div class="lbl">${semaforoDot('verde')}Créditos al día</div><div class="val">${nVerde}</div><div class="sub">Próxima cuota a más de 5 días</div></div>
+      <div class="stat-card ${nAmarillo>0?'warn':''}"><div class="lbl">${semaforoDot('amarillo')}Por vencer (≤5 días)</div><div class="val">${nAmarillo}</div><div class="sub">Cuota próxima a vencer</div></div>
+      <div class="stat-card ${nRojo>0?'warn':''}"><div class="lbl">${semaforoDot('rojo')}Vencidos / en mora</div><div class="val">${nRojo}</div><div class="sub">Con cuota(s) atrasada(s)</div></div>
+    </div>
+
+    <h3 style="margin:0 0 10px">Fondos</h3>
+    <div class="grid grid-3" style="margin-bottom:22px">
+      <div class="stat-card"><div class="lbl">Fondo social</div><div class="val">${fmt(DB.fondos.social)}</div><div class="sub">Apoyo comunitario</div></div>
+      <div class="stat-card"><div class="lbl">Fondo de desgravamen</div><div class="val">${fmt(DB.fondos.desgravamen)}</div><div class="sub">Cobertura por fallecimiento</div></div>
+      <div class="stat-card"><div class="lbl">Fondo de gestión de riesgos</div><div class="val">${fmt(DB.fondos.riesgos)}</div><div class="sub">Cobranza preventiva/extrajudicial</div></div>
+    </div>
+
+    <div class="leaf-divider"></div>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3 style="margin-top:0">Solicitudes de crédito pendientes ${pendAprobar.length?`<span class="badge warn">${pendAprobar.length}</span>`:''}</h3>
+        ${renderListaSolicitudes(pendAprobar)}
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Créditos con mora activa</h3>
+        ${renderListaMora()}
+      </div>
+    </div>
+    <div class="grid grid-2" style="margin-top:16px">
+      <div class="card">
+        <h3 style="margin-top:0">Últimos movimientos</h3>
+        ${renderUltimosMovimientos()}
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Ahorros — ingresos y egresos</h3>
+        <div class="grid grid-3">
+          <div class="stat-card" style="padding:10px"><div class="lbl" style="font-size:10.5px">Depósitos (ingresos)</div><div class="val" style="font-size:16px">${fmt(totalMovAhorro('deposito'))}</div></div>
+          <div class="stat-card" style="padding:10px"><div class="lbl" style="font-size:10.5px">Retiros (egresos)</div><div class="val" style="font-size:16px">${fmt(totalMovAhorro('retiro'))}</div></div>
+          <div class="stat-card" style="padding:10px"><div class="lbl" style="font-size:10.5px">Interés pagado</div><div class="val" style="font-size:16px">${fmt(totalMovAhorro('interes'))}</div></div>
+        </div>
+        <p style="margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="goTab('ahorros')">Ver detalle de ahorros →</button></p>
+      </div>
+    </div>
+  `;
+}
+function renderListaSolicitudes(list){
+  if(!list.length) return `<p class="empty">✅ No hay solicitudes pendientes de aprobación.</p>`;
+  return `<div class="table-wrap"><table><thead><tr><th>N°</th><th>Solicitante</th><th>Monto</th><th>Fecha</th><th></th></tr></thead><tbody>
+    ${list.map(c=>{
+      const s = socioById(c.solicitanteId);
+      return `<tr><td>#${c.numero}</td><td>${esc(s?s.nombres:'—')}</td><td>${fmt(c.monto)}</td><td>${fmtDate(c.fechaSolicitud)}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="goTab('creditos');setTimeout(()=>openCreditoDetalle('${c.id}'),50)">Revisar</button></td></tr>`;
+    }).join('')}
+  </tbody></table></div>`;
+}
+function renderListaMora(){
+  const rows = DB.creditos.filter(c=>c.estado==='desembolsado' && creditoEnMora(c));
+  if(!rows.length) return `<p class="empty">🌤️ No hay créditos en mora en este momento.</p>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Socio/Cliente</th><th>Saldo</th><th>Mora</th><th></th></tr></thead><tbody>
+    ${rows.map(c=>{
+      const s = socioById(c.solicitanteId);
+      return `<tr><td>${semaforoDot('rojo')}${esc(s?s.nombres:'—')}</td><td>${fmt(saldoCredito(c))}</td><td style="color:var(--rojo);font-weight:700">${fmt(totalMoraCredito(c))}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="goTab('creditos');setTimeout(()=>openCreditoDetalle('${c.id}'),50)">Ver</button></td></tr>`;
+    }).join('')}
+  </tbody></table></div>`;
+}
+function renderUltimosMovimientos(){
+  const items = [];
+  DB.socios.forEach(s=>(s.aportes||[]).forEach(a=>items.push({fecha:a.fecha,txt:`Aporte de capital — ${s.nombres}`,monto:a.monto})));
+  DB.movAhorros.forEach(m=>{ const c=DB.ahorros.find(a=>a.id===m.ahorroId); const s=c?socioById(c.socioId):null; items.push({fecha:m.fecha, txt:`${m.tipo==='deposito'?'Depósito':(m.tipo==='retiro'?'Retiro':'Interés acreditado')} de ahorro — ${s?s.nombres:'—'}`, monto:m.monto}); });
+  DB.creditos.forEach(c=>(c.pagosRegistrados||[]).forEach(p=>{ const s=socioById(c.solicitanteId); items.push({fecha:p.fecha, txt:`Pago de crédito — ${s?s.nombres:'—'}`, monto:p.total}); }));
+  items.sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const top = items.slice(0,8);
+  if(!top.length) return `<p class="empty">Aún no hay movimientos registrados.</p>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Monto</th></tr></thead><tbody>
+    ${top.map(i=>`<tr><td>${fmtDate(i.fecha)}</td><td>${esc(i.txt)}</td><td>${fmt(i.monto)}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+/* ================= SOCIOS ================= */
+function renderSocios(main){
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h2>Socios</h2><p class="desc">Registro de personas socias y clientes de la caja comunitaria.</p></div>
+      <button class="btn btn-primary" onclick="openSocioForm()">+ Nuevo socio</button>
+    </div>
+    <div class="searchbar">
+      <input id="socioSearch" placeholder="Buscar por nombre o cédula..." oninput="renderSociosTabla()">
+      <select id="socioFiltro" onchange="renderSociosTabla()">
+        <option value="todos">Todos los estados</option>
+        <option value="activo">Activos</option>
+        <option value="separado">Separados</option>
+      </select>
+    </div>
+    <div id="sociosTablaWrap"></div>
+  `;
+  renderSociosTabla();
+}
+function renderSociosTabla(){
+  const wrap = document.getElementById('sociosTablaWrap');
+  if(!wrap) return;
+  const q = (document.getElementById('socioSearch')?.value||'').toLowerCase();
+  const filtro = document.getElementById('socioFiltro')?.value||'todos';
+  let list = DB.socios.filter(s=>{
+    const matchQ = !q || s.nombres.toLowerCase().includes(q) || (s.cedula||'').includes(q);
+    const matchF = filtro==='todos' || s.estado===filtro;
+    return matchQ && matchF;
+  });
+  if(!list.length){ wrap.innerHTML = `<div class="empty"><div class="big">🧑‍🌾</div>Ningún socio coincide con la búsqueda.<br><button class="btn btn-primary" style="margin-top:14px" onclick="openSocioForm()">+ Registrar el primer socio</button></div>`; return; }
+  wrap.innerHTML = `<div class="table-wrap"><table><thead><tr>
+    <th>Nombre</th><th>Cédula</th><th>Tipo</th><th>Aporte acumulado</th><th>Ingreso</th><th>Estado</th><th></th>
+  </tr></thead><tbody>
+  ${list.map(s=>`<tr>
+    <td><strong>${esc(s.nombres)}</strong></td>
+    <td>${esc(s.cedula||'—')}</td>
+    <td>${s.esComunidad?'Socio comunidad':'Cliente/usuario'}</td>
+    <td>${fmt(totalAportesSocio(s))}</td>
+    <td>${fmtDate(s.fechaIngreso)}</td>
+    <td>${s.estado==='activo'?'<span class="badge ok">Activo</span>':'<span class="badge neutral">Separado</span>'}</td>
+    <td><button class="btn btn-sm btn-ghost" onclick="openSocioDetalle('${s.id}')">Ver</button></td>
+  </tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+function openSocioForm(existing){
+  const s = existing || {};
+  showModal(`${existing?'Editar':'Nuevo'} socio`, `Complete los datos según el Art. 4 del Reglamento (ingreso de socios).`, `
+    <form id="socioForm">
+      <div class="grid grid-2">
+        <div class="field"><label>Nombres completos *</label><input name="nombres" required value="${esc(s.nombres||'')}"></div>
+        <div class="field"><label>Cédula</label><input name="cedula" value="${esc(s.cedula||'')}"></div>
+        <div class="field"><label>Teléfono</label><input name="telefono" value="${esc(s.telefono||'')}"></div>
+        <div class="field"><label>Fecha de ingreso *</label><input type="date" name="fechaIngreso" required value="${s.fechaIngreso||todayISO()}"></div>
+        <div class="field"><label>Tipo de socio *</label>
+          <select name="esComunidad">
+            <option value="si" ${s.esComunidad?'selected':''}>Socio de la comunidad</option>
+            <option value="no" ${s.esComunidad===false?'selected':''}>Cliente / usuario externo</option>
+          </select>
+        </div>
+        <div class="field"><label>Beneficiario (Art. 7 Aportes)</label><input name="beneficiario" value="${esc(s.beneficiario||'')}"></div>
+        ${existing?'':`<div class="field"><label>Aporte inicial entregado hoy (US$)</label><input type="number" step="0.01" min="0" name="aporteInicialMonto" value="${DB.config.aporteInicial}"></div>`}
+      </div>
+      <div class="field"><label>Dirección / referencia</label><textarea name="direccion">${esc(s.direccion||'')}</textarea></div>
+      <div class="helptext">El aporte inicial de referencia según Art. 1 es de <strong>${fmt(DB.config.aporteInicial)}</strong>, pero puede ingresar el monto que el socio entregue hoy — si no completa el total, podrá seguir aportando poco a poco desde la pestaña "Aportes de Capital" hasta llegar a la meta.</div>
+    </form>
+  `, ()=>{
+    const f = document.getElementById('socioForm');
+    const data = Object.fromEntries(new FormData(f).entries());
+    if(!data.nombres || !data.fechaIngreso){ toast('Complete los campos obligatorios','err'); return false; }
+    if(existing){
+      Object.assign(existing, {nombres:data.nombres, cedula:data.cedula, telefono:data.telefono, fechaIngreso:data.fechaIngreso, esComunidad:data.esComunidad==='si', beneficiario:data.beneficiario, direccion:data.direccion});
+    } else {
+      const nuevo = {
+        id: uid('soc'), nombres:data.nombres, cedula:data.cedula, telefono:data.telefono,
+        fechaIngreso:data.fechaIngreso, esComunidad:data.esComunidad==='si', beneficiario:data.beneficiario,
+        direccion:data.direccion, estado:'activo', aportes:[]
+      };
+      const montoInicial = Math.max(0, Number(data.aporteInicialMonto)||0);
+      if(montoInicial > 0){
+        nuevo.aportes.push({id:uid('ap'), fecha:data.fechaIngreso, monto:montoInicial, tipo:'inicial', concepto:'Aporte de capital inicial'});
+      }
+      DB.socios.push(nuevo);
+    }
+    saveDB(); toast('Socio guardado correctamente'); renderSociosTabla(); return true;
+  });
+}
+
+function openSocioDetalle(id){
+  const s = socioById(id); if(!s) return;
+  const cred = DB.creditos.filter(c=>c.solicitanteId===id);
+  const ahorrosSocio = DB.ahorros.filter(a=>a.socioId===id);
+  showModal(s.nombres, `${s.esComunidad?'Socio de la comunidad':'Cliente / usuario externo'} · Ingreso ${fmtDate(s.fechaIngreso)}`, `
+    <div class="grid grid-3" style="margin-bottom:14px">
+      <div class="stat-card"><div class="lbl">Aporte acumulado</div><div class="val" style="font-size:19px">${fmt(totalAportesSocio(s))}</div></div>
+      <div class="stat-card"><div class="lbl">Créditos</div><div class="val" style="font-size:19px">${cred.length}</div></div>
+      <div class="stat-card"><div class="lbl">Cuentas de ahorro</div><div class="val" style="font-size:19px">${ahorrosSocio.length}</div></div>
+    </div>
+    <p><strong>Cédula:</strong> ${esc(s.cedula||'—')} &nbsp; <strong>Tel:</strong> ${esc(s.telefono||'—')}</p>
+    <p><strong>Beneficiario:</strong> ${esc(s.beneficiario||'No registrado')}</p>
+    <p><strong>Dirección:</strong> ${esc(s.direccion||'—')}</p>
+    <p><strong>Faltas injustificadas ${new Date().getFullYear()}:</strong> ${inasistenciasInjustificadasAnio(s.id, new Date().getFullYear())} ${inasistenciasInjustificadasAnio(s.id, new Date().getFullYear())>=3?'<span class="badge bad">Riesgo de separación (Art. 8d)</span>':''}
+    &nbsp; <strong>Multas pendientes:</strong> ${fmt(DB.multas.filter(m=>m.socioId===s.id && !m.pagada).reduce((a,m)=>a+Number(m.monto),0))}</p>
+    <div class="leaf-divider"></div>
+    <h3 style="margin-bottom:8px">Historial de aportes</h3>
+    <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th></tr></thead><tbody>
+      ${(s.aportes||[]).map(a=>`<tr><td>${fmtDate(a.fecha)}</td><td>${esc(a.tipo)}</td><td>${fmt(a.monto)}</td></tr>`).join('') || '<tr><td colspan="3" style="color:var(--tinta-suave)">Sin aportes registrados</td></tr>'}
+    </tbody></table></div>
+    <div class="modal-actions" style="justify-content:space-between">
+      <div>
+        ${s.estado==='activo'?`<button class="btn btn-danger btn-sm" onclick="separarSocio('${s.id}')">Separar socio</button>`:`<span class="badge neutral">Separado</span>`}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal();openSocioForm(socioById('${s.id}'))">Editar</button>
+        <button class="btn btn-gold btn-sm" onclick="closeModal();genFichaIngreso('${s.id}')">📄 Ficha de ingreso</button>
+        <button class="btn btn-gold btn-sm" onclick="closeModal();genCertificadoAporte('${s.id}')">📄 Certificado de aporte</button>
+      </div>
+    </div>
+  `, null, true);
+}
+function separarSocio(id){
+  const s = socioById(id); if(!s) return;
+  if(!confirm('¿Confirma separar a este socio de la caja (Art. 5)?')) return;
+  s.estado='separado'; saveDB(); toast('Socio separado'); closeModal(); renderSociosTabla();
+}
+
+/* ================= APORTES DE CAPITAL ================= */
+function renderAportes(main){
+  const total = totalCapitalSocial();
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h2>Aportes de Capital</h2><p class="desc">Aporte inicial ${fmt(DB.config.aporteInicial)} · Aporte mensual mínimo ${fmt(DB.config.aporteMensual)} · Tope ${fmt(DB.config.aporteMaximo)} por socio (Art. 1–3).</p></div>
+      <button class="btn btn-primary" onclick="openAporteForm()">+ Registrar aporte</button>
+    </div>
+    <div class="stat-card" style="max-width:260px;margin-bottom:18px"><div class="lbl">Capital social total</div><div class="val">${fmt(total)}</div></div>
+    <div class="table-wrap"><table><thead><tr><th>Socio</th><th>Aportado</th><th>Meta ($${DB.config.aporteMaximo})</th><th>Progreso</th></tr></thead><tbody>
+    ${sociosActivos().map(s=>{
+      const t = totalAportesSocio(s); const pct = Math.min(100, Math.round(t/DB.config.aporteMaximo*100));
+      return `<tr><td>${esc(s.nombres)}</td><td>${fmt(t)}</td><td>${fmt(DB.config.aporteMaximo)}</td>
+      <td><div style="background:var(--crema-2);border-radius:6px;height:9px;width:140px;overflow:hidden"><div style="background:var(--verde-500);height:100%;width:${pct}%"></div></div><span style="font-size:11px;color:var(--tinta-suave)">${pct}%</span></td></tr>`;
+    }).join('') || '<tr><td colspan="4" class="empty">No hay socios activos.</td></tr>'}
+    </tbody></table></div>
+  `;
+}
+function openAporteForm(){
+  if(!sociosActivos().length){ toast('Registre primero un socio','err'); return; }
+  showModal('Registrar aporte de capital', 'Se sumará al historial de aportes del socio seleccionado.', `
+    <form id="aporteForm">
+      <div class="field"><label>Socio *</label><select name="socioId" required>${sociosActivos().map(s=>`<option value="${s.id}">${esc(s.nombres)}</option>`).join('')}</select></div>
+      <div class="grid grid-2">
+        <div class="field"><label>Fecha *</label><input type="date" name="fecha" required value="${todayISO()}"></div>
+        <div class="field"><label>Monto (US$) *</label><input type="number" step="0.01" min="0.01" name="monto" required value="${DB.config.aporteMensual}"></div>
+      </div>
+      <div class="field"><label>Tipo</label><select name="tipo"><option value="adicional">Aporte mensual adicional</option><option value="otro">Otro aporte decidido en asamblea</option></select></div>
+    </form>
+  `, ()=>{
+    const f = document.getElementById('aporteForm'); const d = Object.fromEntries(new FormData(f).entries());
+    const s = socioById(d.socioId); if(!s) return false;
+    s.aportes.push({id:uid('ap'), fecha:d.fecha, monto:Number(d.monto), tipo:d.tipo, concepto:d.tipo==='adicional'?'Aporte mensual adicional':'Aporte extraordinario'});
+    saveDB(); toast('Aporte registrado'); renderAportes(document.getElementById('mainContent')); return true;
+  });
+}
+
+/* ================= AHORROS ================= */
+function renderAhorros(main){
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h2>Ahorros</h2><p class="desc">Depósitos a plazo fijo y voluntarios. Interés ${DB.config.tasaAhorro}% anual (70% depositante / 30% caja — Art. 2).</p></div>
+      <button class="btn btn-primary" onclick="openAhorroForm()">+ Nueva cuenta</button>
+    </div>
+    <div class="grid grid-4" style="margin-bottom:18px">
+      <div class="stat-card"><div class="lbl">Saldo total en ahorros</div><div class="val">${fmt(totalAhorros())}</div><div class="sub">${DB.ahorros.filter(a=>a.estado!=='cerrado').length} cuentas activas</div></div>
+      <div class="stat-card"><div class="lbl">Ingresos (depósitos)</div><div class="val">${fmt(totalMovAhorro('deposito'))}</div><div class="sub">Histórico acumulado</div></div>
+      <div class="stat-card"><div class="lbl">Egresos (retiros)</div><div class="val">${fmt(totalMovAhorro('retiro'))}</div><div class="sub">Histórico acumulado</div></div>
+      <div class="stat-card"><div class="lbl">Cartera de interés (ahorros)</div><div class="val">${fmt(totalMovAhorro('interes'))}</div><div class="sub">Interés acreditado a depositantes</div></div>
+    </div>
+    <div id="ahorrosWrap"></div>
+  `;
+  renderAhorrosTabla();
+}
+function renderAhorrosTabla(){
+  const wrap = document.getElementById('ahorrosWrap'); if(!wrap) return;
+  if(!DB.ahorros.length){ wrap.innerHTML = `<div class="empty"><div class="big">💧</div>Todavía no hay cuentas de ahorro registradas.</div>`; return; }
+  wrap.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Socio</th><th>Tipo</th><th>Saldo</th><th>Depositado</th><th>Retirado</th><th>Apertura</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${DB.ahorros.map(a=>{
+    const s = socioById(a.socioId);
+    const dep = DB.movAhorros.filter(m=>m.ahorroId===a.id&&m.tipo==='deposito').reduce((x,m)=>x+Number(m.monto),0);
+    const ret = DB.movAhorros.filter(m=>m.ahorroId===a.id&&m.tipo==='retiro').reduce((x,m)=>x+Number(m.monto),0);
+    return `<tr><td>${esc(s?s.nombres:'—')}</td><td>${a.tipo==='plazo'?'Plazo fijo':'Voluntario'}</td><td><strong>${fmt(a.saldo)}</strong></td><td>${fmt(dep)}</td><td>${fmt(ret)}</td><td>${fmtDate(a.fechaApertura)}</td>
+    <td>${a.estado==='cerrado'?'<span class="badge neutral">Cerrada</span>':'<span class="badge ok">Activa</span>'}</td>
+    <td><button class="btn btn-sm btn-ghost" onclick="openAhorroDetalle('${a.id}')">Ver</button></td></tr>`;
+  }).join('')}
+  </tbody></table></div>`;
+}
+function openAhorroForm(){
+  if(!sociosActivos().length){ toast('Registre primero un socio','err'); return; }
+  showModal('Nueva cuenta de ahorro', `Monto mínimo ${fmt(DB.config.ahorroMinimo)}, plazo mínimo ${DB.config.ahorroPlazoMinMeses} meses (Art. 4).`, `
+    <form id="ahorroForm">
+      <div class="field"><label>Socio *</label><select name="socioId" required>${sociosActivos().map(s=>`<option value="${s.id}">${esc(s.nombres)}</option>`).join('')}</select></div>
+      <div class="grid grid-2">
+        <div class="field"><label>Tipo</label><select name="tipo"><option value="voluntario">Ahorro voluntario</option><option value="plazo">Depósito a plazo fijo</option></select></div>
+        <div class="field"><label>Fecha de apertura *</label><input type="date" name="fechaApertura" required value="${todayISO()}"></div>
+        <div class="field"><label>Monto inicial (US$) *</label><input type="number" step="0.01" min="0" name="monto" required value="${DB.config.ahorroMinimo}"></div>
+        <div class="field"><label>Plazo (meses)</label><input type="number" min="1" name="plazoMeses" value="${DB.config.ahorroPlazoMinMeses}"></div>
+      </div>
+    </form>
+  `, ()=>{
+    const f = document.getElementById('ahorroForm'); const d = Object.fromEntries(new FormData(f).entries());
+    const nuevo = {id:uid('ah'), socioId:d.socioId, tipo:d.tipo, fechaApertura:d.fechaApertura, plazoMeses:Number(d.plazoMeses)||0, saldo:Number(d.monto)||0, tasaInteres:DB.config.tasaAhorro, estado:'activa'};
+    DB.ahorros.push(nuevo);
+    if(nuevo.saldo>0) DB.movAhorros.push({id:uid('mv'), ahorroId:nuevo.id, fecha:d.fechaApertura, tipo:'deposito', monto:nuevo.saldo});
+    saveDB(); toast('Cuenta de ahorro creada'); renderAhorros(document.getElementById('mainContent')); return true;
+  });
+}
+function openAhorroDetalle(id){
+  const a = DB.ahorros.find(x=>x.id===id); if(!a) return;
+  const s = socioById(a.socioId);
+  const movs = DB.movAhorros.filter(m=>m.ahorroId===id).sort((x,y)=>y.fecha.localeCompare(x.fecha));
+  const totalInteres = movs.filter(m=>m.tipo==='interes').reduce((a,m)=>a+Number(m.monto),0);
+  showModal(`Cuenta de ${s?s.nombres:'—'}`, `${a.tipo==='plazo'?'Depósito a plazo fijo':'Ahorro voluntario'} · Tasa ${a.tasaInteres}% anual`, `
+    <div class="grid grid-2" style="margin-bottom:14px">
+      <div class="stat-card"><div class="lbl">Saldo actual</div><div class="val" style="font-size:20px">${fmt(a.saldo)}</div></div>
+      <div class="stat-card"><div class="lbl">Interés acreditado</div><div class="val" style="font-size:20px">${fmt(totalInteres)}</div></div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Monto</th></tr></thead><tbody>
+      ${movs.map(m=>`<tr><td>${fmtDate(m.fecha)}</td><td>${m.tipo==='deposito'?'Depósito (ingreso)':(m.tipo==='retiro'?'Retiro (egreso)':'Interés acreditado')}</td><td>${fmt(m.monto)}</td></tr>`).join('') || '<tr><td colspan="3" style="color:var(--tinta-suave)">Sin movimientos</td></tr>'}
+    </tbody></table></div>
+    ${a.estado!=='cerrado' ? `
+    <div class="grid grid-3" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="movAhorro('${a.id}','deposito')">+ Depósito</button>
+      <button class="btn btn-ghost" onclick="movAhorro('${a.id}','retiro')">− Retiro</button>
+      <button class="btn btn-gold" onclick="movAhorro('${a.id}','interes')">% Interés generado</button>
+    </div>` : '<p class="badge neutral">Cuenta cerrada</p>'}
+  `, null, true);
+}
+function movAhorro(ahorroId, tipo){
+  const labels = {deposito:'Monto a depositar (US$):', retiro:'Monto a retirar (US$):', interes:'Monto de interés a acreditar (US$):'};
+  const monto = prompt(labels[tipo]);
+  if(monto===null) return;
+  const val = Number(monto);
+  if(!val || val<=0){ toast('Monto inválido','err'); return; }
+  const a = DB.ahorros.find(x=>x.id===ahorroId); if(!a) return;
+  if(tipo==='retiro' && val>a.saldo){ toast('El monto excede el saldo disponible','err'); return; }
+  const signo = tipo==='retiro' ? -1 : 1;
+  a.saldo = round2(a.saldo + signo*val);
+  DB.movAhorros.push({id:uid('mv'), ahorroId, fecha:todayISO(), tipo, monto:val});
+  saveDB(); toast('Movimiento registrado'); closeModal(); openAhorroDetalle(ahorroId);
+}
+
+/* ================= CRÉDITOS ================= */
+function renderCreditos(main){
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h2>Creditos</h2><p class="desc">Solicitud -> aprobacion del Comite de Credito -> desembolso -> seguimiento de pagos y mora.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="openCreditoHistoricoForm()">+ Credito anterior (historico)</button>
+        <button class="btn btn-primary" onclick="openCreditoForm()">+ Nueva solicitud</button>
+      </div>
+    </div>
+    <div class="pill-nav" id="credFiltroPills">
+      ${['todos','solicitado','aprobado','al_dia','por_vencer','vencido','cancelado','rechazado'].map(k=>`<button data-k="${k}" class="${k==='todos'?'active':''}" onclick="filtrarCreditos('${k}')">${credLabel(k)}</button>`).join('')}
+    </div>
+    <div id="creditosWrap"></div>
+  `;
+  window._credFiltro='todos';
+  renderCreditosTabla();
+}
+function credLabel(k){ return {todos:'Todos', solicitado:'Solicitados', aprobado:'Aprobados', al_dia:'Al dia', por_vencer:'Por vencer', vencido:'Vencidos', cancelado:'Cancelados', rechazado:'Rechazados'}[k]||k; }
+function filtrarCreditos(k){
+  window._credFiltro = k;
+  document.querySelectorAll('#credFiltroPills button').forEach(b=>b.classList.toggle('active', b.dataset.k===k));
+  renderCreditosTabla();
+}
+function renderCreditosTabla(){
+  const wrap = document.getElementById('creditosWrap'); if(!wrap) return;
+  const filtro = window._credFiltro||'todos';
+  const semMap = {al_dia:'verde', por_vencer:'amarillo', vencido:'rojo'};
+  let list = DB.creditos.filter(c=>{
+    if(filtro==='todos') return true;
+    if(semMap[filtro]) return c.estado==='desembolsado' && creditoSemaforo(c)===semMap[filtro];
+    return c.estado===filtro;
+  }).sort((a,b)=>b.fechaSolicitud.localeCompare(a.fechaSolicitud));
+  if(!list.length){ wrap.innerHTML = `<div class="empty"><div class="big">Sin resultados</div>No hay creditos en esta categoria.</div>`; return; }
+  wrap.innerHTML = `<div class="table-wrap"><table><thead><tr><th></th><th>N</th><th>Solicitante</th><th>Monto</th><th>Plazo</th><th>Tasa</th><th>Mora</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${list.map(c=>{
+    const s = socioById(c.solicitanteId);
+    const sem = creditoSemaforo(c);
+    const mora = totalMoraCredito(c);
+    return `<tr><td>${c.estado==='desembolsado'?semaforoDot(sem):''}</td><td>#${c.numero}</td><td>${esc(s?s.nombres:'-')}</td><td>${fmt(c.monto)}</td><td>${c.plazoMeses} meses</td><td>${c.tasaInteres}%</td>
+    <td>${mora>0?`<strong style="color:var(--rojo)">${fmt(mora)}</strong>`:'-'}</td>
+    <td>${estadoBadge(c.estado, sem)}</td>
+    <td><button class="btn btn-sm btn-ghost" onclick="openCreditoDetalle('${c.id}')">Ver</button></td></tr>`;
+  }).join('')}
+  </tbody></table></div>`;
+}
+function estadoBadge(estado, sem){
+  if(estado==='desembolsado'){
+    if(sem==='rojo') return '<span class="badge bad">Vencido</span>';
+    if(sem==='amarillo') return '<span class="badge warn">Por vencer</span>';
+    return '<span class="badge ok">Al dia</span>';
+  }
+  const map = {solicitado:'<span class="badge info">Solicitado</span>', aprobado:'<span class="badge warn">Aprobado</span>', cancelado:'<span class="badge neutral">Cancelado</span>', rechazado:'<span class="badge bad">Rechazado</span>'};
+  return map[estado]||estado;
+}
+function siguienteNumeroCredito(){
+  return (DB.creditos.reduce((m,c)=>Math.max(m,c.numero||0),0))+1;
+}
+const MODO_MORA_HELP = {
+  porCuota: 'Cada cuota genera mora desde el dia siguiente a su propio vencimiento (Art. 11).',
+  alFinalPlazo: 'La mora solo se calcula sobre el saldo, y unicamente despues de vencido todo el plazo del credito.'
+};
+function openCreditoForm(){
+  if(!DB.socios.length){ toast('Registre primero un socio o cliente','err'); return; }
+  showModal('Nueva solicitud de credito', 'Segun el Art. 12 del reglamento de creditos, el socio debe estar al dia en sus obligaciones.', `
+    <form id="credForm">
+      <div class="field"><label>Solicitante *</label><select name="solicitanteId" required onchange="actualizaLimitesCredito(this)">${DB.socios.map(s=>`<option value="${s.id}" data-comunidad="${s.esComunidad}">${esc(s.nombres)} ${s.esComunidad?'(socio)':'(cliente)'}</option>`).join('')}</select></div>
+      <div class="grid grid-2">
+        <div class="field"><label>Fecha de solicitud *</label><input type="date" name="fechaSolicitud" required value="${todayISO()}"></div>
+        <div class="field"><label>Destino</label><select name="destino"><option value="productivo">Actividad productiva</option><option value="consumo">Consumo</option></select></div>
+        <div class="field"><label>Monto solicitado (US$) *</label><input type="number" step="1" min="${DB.config.montoMin}" name="monto" id="credMontoInput" required></div>
+        <div class="field"><label>Plazo (meses) *</label><input type="number" min="1" max="12" name="plazoMeses" id="credPlazoInput" required></div>
+        <div class="field"><label>Tasa de interes anual (%)</label><input type="number" step="0.1" name="tasaInteres" id="credTasaInput" value="${DB.config.tasaSocio}"></div>
+        <div class="field"><label>Garante (si aplica - Art. 12)</label><input name="garante"></div>
+        <div class="field"><label>Conyuge (Art. 12b)</label><input name="conyuge"></div>
+        <div class="field"><label>Forma de calculo de mora</label>
+          <select name="modoMora">
+            <option value="porCuota">Por cada cuota mensual vencida</option>
+            <option value="alFinalPlazo">Solo al vencer todo el plazo</option>
+          </select>
+        </div>
+      </div>
+      <div class="helptext" id="credHelp">Seleccione un solicitante para ver montos y tasa aplicables.</div>
+    </form>
+  `, ()=>{
+    const f = document.getElementById('credForm'); const d = Object.fromEntries(new FormData(f).entries());
+    const s = socioById(d.solicitanteId);
+    const max = montoMaxParaSolicitante(s.esComunidad);
+    const monto = Number(d.monto);
+    if(monto < DB.config.montoMin || monto > max){ toast(`El monto debe estar entre ${fmt(DB.config.montoMin)} y ${fmt(max)}`,'err'); return false; }
+    const nuevo = {
+      id: uid('cr'), numero: siguienteNumeroCredito(), solicitanteId:d.solicitanteId, monto, destino:d.destino,
+      plazoMeses:Number(d.plazoMeses), tasaInteres:Number(d.tasaInteres), garante:d.garante, conyuge:d.conyuge,
+      modoMora: d.modoMora||'porCuota', fechaSolicitud:d.fechaSolicitud, estado:'solicitado', tabla:[], pagosRegistrados:[]
+    };
+    DB.creditos.push(nuevo); saveDB(); toast('Solicitud registrada - pendiente de aprobacion');
+    renderCreditosTabla(); return true;
+  });
+  setTimeout(()=>actualizaLimitesCredito(document.querySelector('#credForm select[name=solicitanteId]')),30);
+}
+function actualizaLimitesCredito(sel){
+  if(!sel) return;
+  const esComunidad = sel.selectedOptions[0].dataset.comunidad === 'true';
+  const max = montoMaxParaSolicitante(esComunidad);
+  const tasa = tasaParaSolicitante(esComunidad);
+  document.getElementById('credMontoInput').max = max;
+  document.getElementById('credTasaInput').value = tasa;
+  document.getElementById('credHelp').textContent = `Monto permitido: ${fmt(DB.config.montoMin)} a ${fmt(max)} - Tasa: ${tasa}% anual - Plazo segun Art. 5 del reglamento de creditos.`;
+}
+
+/* ---- Registro de creditos de anios anteriores que ya estan vigentes o en mora ---- */
+function openCreditoHistoricoForm(){
+  if(!DB.socios.length){ toast('Registre primero un socio o cliente','err'); return; }
+  showModal('Registrar credito anterior (historico)', 'Para creditos entregados en anios anteriores. Indique cuantas cuotas ya se pagaron; el resto se calculara como pendiente y la mora se calculara automaticamente segun la fecha de hoy.', `
+    <form id="credHistForm">
+      <div class="field"><label>Solicitante *</label><select name="solicitanteId" required onchange="actualizaLimitesCredHist(this)">${DB.socios.map(s=>`<option value="${s.id}" data-comunidad="${s.esComunidad}">${esc(s.nombres)} ${s.esComunidad?'(socio)':'(cliente)'}</option>`).join('')}</select></div>
+      <div class="grid grid-2">
+        <div class="field"><label>Fecha de desembolso original *</label><input type="date" name="fechaDesembolso" required></div>
+        <div class="field"><label>Monto entregado (US$) *</label><input type="number" step="1" min="1" name="monto" id="credHistMonto" required></div>
+        <div class="field"><label>Plazo (meses) *</label><input type="number" min="1" max="60" name="plazoMeses" required value="12"></div>
+        <div class="field"><label>Tasa de interes anual (%)</label><input type="number" step="0.1" name="tasaInteres" id="credHistTasa" value="${DB.config.tasaSocio}"></div>
+        <div class="field"><label>Cuotas ya pagadas</label><input type="number" min="0" name="cuotasPagadas" value="0"></div>
+        <div class="field"><label>Forma de calculo de mora</label>
+          <select name="modoMora">
+            <option value="porCuota">Por cada cuota mensual vencida</option>
+            <option value="alFinalPlazo">Solo al vencer todo el plazo</option>
+          </select>
+        </div>
+      </div>
+      <div class="helptext">Este credito quedara marcado como <strong>desembolsado</strong> de inmediato, con su tabla de amortizacion generada desde la fecha original. Si hoy ya paso alguna fecha de cuota sin pagar, el sistema mostrara la mora automaticamente.</div>
+    </form>
+  `, ()=>{
+    const f = document.getElementById('credHistForm'); const d = Object.fromEntries(new FormData(f).entries());
+    if(!d.fechaDesembolso || !d.monto || !d.plazoMeses){ toast('Complete los campos obligatorios','err'); return false; }
+    const nuevo = {
+      id: uid('cr'), numero: siguienteNumeroCredito(), solicitanteId:d.solicitanteId, monto:Number(d.monto),
+      destino:'productivo', plazoMeses:Number(d.plazoMeses), tasaInteres:Number(d.tasaInteres), garante:'', conyuge:'',
+      modoMora: d.modoMora||'porCuota', fechaSolicitud:d.fechaDesembolso, fechaAprobacion:d.fechaDesembolso,
+      fechaDesembolso:d.fechaDesembolso, estado:'desembolsado', pagosRegistrados:[], historico:true
+    };
+    nuevo.tabla = calcularAmortizacion(nuevo.monto, nuevo.tasaInteres, nuevo.plazoMeses, nuevo.fechaDesembolso);
+    const nPagadas = Math.min(Number(d.cuotasPagadas)||0, nuevo.tabla.length);
+    for(let i=0;i<nPagadas;i++){ nuevo.tabla[i].pagado = true; nuevo.tabla[i].fechaPago = nuevo.tabla[i].fechaVenc; }
+    const aporteDesgravamen = round2(DB.config.desgravamenPorMes * nuevo.plazoMeses);
+    DB.fondos.desgravamen = round2(DB.fondos.desgravamen + aporteDesgravamen);
+    nuevo.aporteDesgravamen = aporteDesgravamen;
+    DB.creditos.push(nuevo); saveDB();
+    toast('Credito historico registrado'); renderCreditosTabla(); return true;
+  });
+  setTimeout(()=>actualizaLimitesCredHist(document.querySelector('#credHistForm select[name=solicitanteId]')),30);
+}
+function actualizaLimitesCredHist(sel){
+  if(!sel) return;
+  const esComunidad = sel.selectedOptions[0].dataset.comunidad === 'true';
+  document.getElementById('credHistTasa').value = tasaParaSolicitante(esComunidad);
+}
+
+function openCreditoDetalle(id){
+  const c = DB.creditos.find(x=>x.id===id); if(!c) return;
+  const s = socioById(c.solicitanteId);
+  const sem = creditoSemaforo(c);
+  let body = `
+    <div class="grid grid-3" style="margin-bottom:14px">
+      <div class="stat-card"><div class="lbl">Monto</div><div class="val" style="font-size:19px">${fmt(c.monto)}</div></div>
+      <div class="stat-card"><div class="lbl">Saldo pendiente</div><div class="val" style="font-size:19px">${fmt(saldoCredito(c))}</div></div>
+      <div class="stat-card ${totalMoraCredito(c)>0?'warn':''}"><div class="lbl">Mora pendiente de cobro</div><div class="val" style="font-size:19px">${fmt(totalMoraCredito(c))}</div></div>
+    </div>
+    <p><strong>Plazo:</strong> ${c.plazoMeses} meses &nbsp; <strong>Tasa:</strong> ${c.tasaInteres}% anual &nbsp; <strong>Destino:</strong> ${c.destino==='productivo'?'Productivo':'Consumo'}</p>
+    <p><strong>Garante:</strong> ${esc(c.garante||'No aplica')} &nbsp; <strong>Conyuge:</strong> ${esc(c.conyuge||'-')}</p>
+    <p><strong>Estado:</strong> ${estadoBadge(c.estado, sem)} ${c.estado==='desembolsado'?semaforoDot(sem):''}</p>
+  `;
+  if(c.estado==='desembolsado'){
+    body += `<div class="field" style="max-width:340px"><label>Forma de calculo de mora</label>
+      <select onchange="cambiarModoMora('${c.id}', this.value)">
+        <option value="porCuota" ${c.modoMora!=='alFinalPlazo'?'selected':''}>Por cada cuota mensual vencida</option>
+        <option value="alFinalPlazo" ${c.modoMora==='alFinalPlazo'?'selected':''}>Solo al vencer todo el plazo</option>
+      </select>
+      <div class="hint">${MODO_MORA_HELP[c.modoMora==='alFinalPlazo'?'alFinalPlazo':'porCuota']}</div>
+    </div>
+    <div class="grid grid-2" style="margin:12px 0">
+      <button class="btn btn-danger btn-sm" onclick="registrarCobroMoraManual('${c.id}')" ${totalMoraCredito(c)<=0?'disabled':''}>Registrar cobro de mora</button>
+      <button class="btn btn-ghost btn-sm" onclick="condonarMora('${c.id}')" ${totalMoraCredito(c)<=0?'disabled':''}>Condonar mora (total/parcial)</button>
+    </div>`;
+    if((c.historialMora||[]).length){
+      body += `<div class="table-wrap" style="margin-bottom:14px"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Motivo</th></tr></thead><tbody>
+        ${c.historialMora.slice().reverse().map(h=>`<tr><td>${fmtDate(h.fecha)}</td><td>${h.tipo==='cobro'?'Cobro manual':'Condonacion'}</td><td>${fmt(h.monto)}</td><td>${esc(h.motivo||'-')}</td></tr>`).join('')}
+      </tbody></table></div>`;
+    }
+  }
+  if(c.tabla && c.tabla.length){
+    body += `<div class="leaf-divider"></div><h3 style="margin-bottom:8px">Tabla de amortizacion (sistema frances)</h3>
+    <div class="table-wrap" style="max-height:260px;overflow-y:auto"><table><thead><tr><th>#</th><th>Vence</th><th>Cuota</th><th>Capital</th><th>Interes</th><th>Saldo</th><th>Mora informativa</th><th></th></tr></thead><tbody>
+    ${c.tabla.map(t=>`<tr><td>${t.numero}</td><td>${fmtDate(t.fechaVenc)}</td><td>${fmt(t.cuota)}</td><td>${fmt(t.capital)}</td><td>${fmt(t.interes)}</td><td>${fmt(t.saldo)}</td>
+    <td>${t.pagado?'-':(moraCuota(t)>0?`<span style="color:var(--rojo)">${fmt(moraCuota(t))}</span>`:'-')}</td>
+    <td>${t.pagado?'<span class="badge ok">Pagada</span>':`<button class="btn btn-sm btn-primary" onclick="registrarPagoCuota('${c.id}',${t.numero})">Registrar pago</button>`}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="hint">La columna de mora es informativa por cuota; el cobro o condonacion real de la mora se gestiona con los botones de arriba, segun lo que resuelva la directiva.</p>`;
+  }
+  let acciones = '<div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap">';
+  acciones += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  acciones += `<button class="btn btn-ghost btn-sm" onclick="closeModal();genSolicitudCredito('${c.id}')">Solicitud</button>`;
+  if(c.estado!=='solicitado') acciones += `<button class="btn btn-ghost btn-sm" onclick="closeModal();genAprobacionCredito('${c.id}')">Acta de aprobacion</button>`;
+  if(c.estado==='desembolsado' || c.fechaDesembolso) acciones += `<button class="btn btn-ghost btn-sm" onclick="closeModal();genEntregaCredito('${c.id}')">Acta de entrega-recepcion</button>`;
+  acciones += '</div><div style="display:flex;gap:8px;flex-wrap:wrap">';
+  if(c.estado==='solicitado'){
+    acciones += `<button class="btn btn-danger btn-sm" onclick="resolverCredito('${c.id}','rechazado')">Rechazar</button>`;
+    acciones += `<button class="btn btn-primary btn-sm" onclick="resolverCredito('${c.id}','aprobado')">Aprobar (Comite de Credito)</button>`;
+  } else if(c.estado==='aprobado'){
+    acciones += `<button class="btn btn-gold btn-sm" onclick="desembolsarCredito('${c.id}')">Registrar desembolso</button>`;
+  }
+  acciones += '</div></div>';
+  showModal(`Credito #${c.numero} - ${s?s.nombres:'-'}`, `Solicitado el ${fmtDate(c.fechaSolicitud)}`, body+acciones, null, true);
+}
+function resolverCredito(id, decision){
+  const c = DB.creditos.find(x=>x.id===id); if(!c) return;
+  if(decision==='rechazado'){
+    c.estado='rechazado'; saveDB(); toast('Solicitud rechazada'); closeModal(); renderCreditosTabla(); return;
+  }
+  c.estado='aprobado'; c.fechaAprobacion = todayISO();
+  saveDB(); toast('Credito aprobado por el Comite de Credito'); closeModal(); openCreditoDetalle(id);
+}
+function desembolsarCredito(id){
+  const c = DB.creditos.find(x=>x.id===id); if(!c) return;
+  showModal('Registrar desembolso', 'Confirme la fecha real de entrega del dinero. Se generara la tabla de amortizacion a partir de esa fecha.', `
+    <form id="desembolsoForm">
+      <div class="field"><label>Fecha de desembolso *</label><input type="date" name="fechaDesembolso" required value="${todayISO()}"></div>
+    </form>
+  `, ()=>{
+    const f = document.getElementById('desembolsoForm'); const d = Object.fromEntries(new FormData(f).entries());
+    c.fechaDesembolso = d.fechaDesembolso;
+    c.tabla = calcularAmortizacion(c.monto, c.tasaInteres, c.plazoMeses, c.fechaDesembolso);
+    c.estado = 'desembolsado';
+    const aporteDesgravamen = round2(DB.config.desgravamenPorMes * c.plazoMeses);
+    DB.fondos.desgravamen = round2(DB.fondos.desgravamen + aporteDesgravamen);
+    c.aporteDesgravamen = aporteDesgravamen;
+    saveDB(); toast('Credito desembolsado - tabla de amortizacion generada');
+    setTimeout(()=>openCreditoDetalle(id),50);
+    return true;
+  });
+}
+function registrarPagoCuota(credId, numero){
+  const c = DB.creditos.find(x=>x.id===credId); if(!c) return;
+  const cuota = c.tabla.find(t=>t.numero===numero); if(!cuota || cuota.pagado) return;
+  if(!confirm(`Registrar pago de la cuota #${numero}\nCapital: ${fmt(cuota.capital)}\nInteres: ${fmt(cuota.interes)}\nTotal cuota: ${fmt(cuota.cuota)}\n\n(La mora, si existiera, se cobra o condona por separado con los botones de "Mora" del credito.)`)) return;
+  cuota.pagado = true; cuota.fechaPago = todayISO();
+  c.pagosRegistrados = c.pagosRegistrados||[];
+  c.pagosRegistrados.push({fecha:todayISO(), cuota:numero, capital:cuota.capital, interes:cuota.interes, mora:0, total:cuota.cuota});
+  if(c.tabla.every(t=>t.pagado)) c.estado = 'cancelado';
+  saveDB(); toast('Pago registrado'); openCreditoDetalle(credId);
+}
+
+/* ================= MULTAS Y ASAMBLEAS (Art. 8 y 9) ================= */
+const TIPO_MULTA_INFO = {
+  atraso:     {label:'Atraso a asamblea (< 30 min)', cfgKey:'multaAtraso', art:'Art. 8a'},
+  inasistencia:{label:'Falta injustificada a asamblea', cfgKey:'multaInasistencia', art:'Art. 8b/d'},
+  desorden:   {label:'Desorden / interrupción en asamblea', cfgKey:'multaDesorden', art:'Art. 8g'},
+  otro:       {label:'Otra sanción acordada en asamblea', cfgKey:null, art:'Art. 8'},
+};
+function montoSugeridoMulta(tipo){ const info = TIPO_MULTA_INFO[tipo]; return info && info.cfgKey ? DB.config[info.cfgKey] : 0; }
+function inasistenciasInjustificadasAnio(socioId, anio){
+  return DB.multas.filter(m=>m.socioId===socioId && m.tipo==='inasistencia' && !m.justificada && m.fecha.slice(0,4)===String(anio)).length;
+}
+function totalMultasPendientes(){ return round2(DB.multas.filter(m=>!m.pagada).reduce((a,m)=>a+Number(m.monto),0)); }
+
+function renderMultas(main){
+  const anioActual = new Date().getFullYear();
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h2>Multas y Asambleas</h2><p class="desc">Registro de sanciones según el Art. 8 del Reglamento: atrasos, faltas injustificadas y desorden en asambleas.</p></div>
+      <button class="btn btn-primary" onclick="openMultaForm()">+ Registrar multa</button>
+    </div>
+    <div class="grid grid-4" style="margin-bottom:18px">
+      <div class="stat-card ${totalMultasPendientes()>0?'warn':''}"><div class="lbl">Multas pendientes</div><div class="val">${fmt(totalMultasPendientes())}</div><div class="sub">${DB.multas.filter(m=>!m.pagada).length} sin cancelar</div></div>
+      <div class="stat-card"><div class="lbl">Registradas este año</div><div class="val">${DB.multas.filter(m=>m.fecha.slice(0,4)===String(anioActual)).length}</div><div class="sub">Año ${anioActual}</div></div>
+      <div class="stat-card"><div class="lbl">Fondo social</div><div class="val">${fmt(DB.fondos.social)}</div><div class="sub">Incluye multas cobradas</div></div>
+      <div class="stat-card ${sociosEnRiesgoSeparacion().length>0?'warn':''}"><div class="lbl">Socios en riesgo (Art. 8d)</div><div class="val">${sociosEnRiesgoSeparacion().length}</div><div class="sub">3+ faltas injustificadas/año</div></div>
+    </div>
+    ${sociosEnRiesgoSeparacion().length ? `<div class="helptext" style="background:#FBEBD9">⚠️ Estos socios acumulan 3 o más faltas injustificadas en ${anioActual} y podrían ser separados según el Art. 8d: <strong>${sociosEnRiesgoSeparacion().map(s=>esc(s.nombres)).join(', ')}</strong></div>` : ''}
+    <div class="searchbar">
+      <select id="multaFiltroEstado" onchange="renderMultasTabla()">
+        <option value="todas">Todas</option>
+        <option value="pendiente">Pendientes</option>
+        <option value="pagada">Pagadas</option>
+      </select>
+      <select id="multaFiltroTipo" onchange="renderMultasTabla()">
+        <option value="todos">Todos los tipos</option>
+        ${Object.entries(TIPO_MULTA_INFO).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div id="multasTablaWrap"></div>
+  `;
+  renderMultasTabla();
+}
+function sociosEnRiesgoSeparacion(){
+  const anio = new Date().getFullYear();
+  return sociosActivos().filter(s=>inasistenciasInjustificadasAnio(s.id, anio) >= 3);
+}
+function renderMultasTabla(){
+  const wrap = document.getElementById('multasTablaWrap'); if(!wrap) return;
+  const fEstado = document.getElementById('multaFiltroEstado')?.value||'todas';
+  const fTipo = document.getElementById('multaFiltroTipo')?.value||'todos';
+  let list = DB.multas.filter(m=>{
+    const okE = fEstado==='todas' || (fEstado==='pendiente'?!m.pagada:m.pagada);
+    const okT = fTipo==='todos' || m.tipo===fTipo;
+    return okE && okT;
+  }).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  if(!list.length){ wrap.innerHTML = `<div class="empty"><div class="big">⚖️</div>No hay multas registradas con este filtro.</div>`; return; }
+  wrap.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Socio</th><th>Sanción</th><th>Motivo</th><th>Monto</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${list.map(m=>{
+    const s = socioById(m.socioId);
+    const info = TIPO_MULTA_INFO[m.tipo]||{label:m.tipo};
+    return `<tr><td>${fmtDate(m.fecha)}</td><td>${esc(s?s.nombres:'—')}</td><td>${info.label}${m.justificada?' <span class="badge neutral">Justificada</span>':''}</td>
+    <td>${esc(m.motivo||'—')}</td><td>${fmt(m.monto)}</td>
+    <td>${m.pagada?'<span class="badge ok">Pagada</span>':'<span class="badge bad">Pendiente</span>'}</td>
+    <td>${m.pagada?'—':`<button class="btn btn-sm btn-primary" onclick="pagarMulta('${m.id}')">Registrar pago</button>`}</td></tr>`;
+  }).join('')}
+  </tbody></table></div>`;
+}
+function openMultaForm(){
+  if(!sociosActivos().length){ toast('Registre primero un socio','err'); return; }
+  showModal('Registrar multa o sanción', 'Los montos sugeridos vienen de Configuración y pueden editarse aquí caso por caso.', `
+    <form id="multaForm">
+      <div class="grid grid-2">
+        <div class="field"><label>Socio *</label><select name="socioId" required>${sociosActivos().map(s=>`<option value="${s.id}">${esc(s.nombres)}</option>`).join('')}</select></div>
+        <div class="field"><label>Fecha *</label><input type="date" name="fecha" required value="${todayISO()}"></div>
+        <div class="field"><label>Tipo de sanción *</label>
+          <select name="tipo" id="multaTipoSel" onchange="actualizaMontoMulta(this)">
+            ${Object.entries(TIPO_MULTA_INFO).map(([k,v])=>`<option value="${k}">${v.label} (${v.art})</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Monto (US$) *</label><input type="number" step="0.01" min="0" name="monto" id="multaMontoInput" required value="${DB.config.multaAtraso}"></div>
+      </div>
+      <div class="field" id="justificadaWrap" style="display:none">
+        <label><input type="checkbox" name="justificada" id="justificadaChk" style="width:auto;display:inline-block;margin-right:6px">Falta justificada (Art. 8c/9 — estudiantes activos fuera de la provincia, adultos mayores o casos de discapacidad). No genera multa ni cuenta para la separación.</label>
+      </div>
+      <div class="field"><label>Motivo / observación</label><textarea name="motivo" placeholder="Ej: Asamblea ordinaria del 12 de julio"></textarea></div>
+    </form>
+  `, ()=>{
+    const f = document.getElementById('multaForm'); const d = Object.fromEntries(new FormData(f).entries());
+    const justificada = !!f.querySelector('#justificadaChk')?.checked;
+    const nueva = {
+      id: uid('mu'), socioId:d.socioId, fecha:d.fecha, tipo:d.tipo,
+      monto: justificada ? 0 : Number(d.monto), motivo:d.motivo, justificada,
+      pagada:false
+    };
+    DB.multas.push(nueva); saveDB();
+    toast(justificada ? 'Falta justificada registrada (sin multa)' : 'Multa registrada');
+    renderMultas(document.getElementById('mainContent'));
+    return true;
+  });
+  setTimeout(()=>actualizaMontoMulta(document.getElementById('multaTipoSel')),20);
+}
+function actualizaMontoMulta(sel){
+  if(!sel) return;
+  const tipo = sel.value;
+  document.getElementById('multaMontoInput').value = montoSugeridoMulta(tipo);
+  document.getElementById('justificadaWrap').style.display = tipo==='inasistencia' ? 'block' : 'none';
+}
+function pagarMulta(id){
+  const m = DB.multas.find(x=>x.id===id); if(!m) return;
+  if(!confirm(`Registrar el pago de ${fmt(m.monto)}?`)) return;
+  m.pagada = true; m.fechaPago = todayISO();
+  DB.fondos.social = round2(DB.fondos.social + Number(m.monto));
+  saveDB(); toast('Pago registrado — se sumó al fondo social'); renderMultasTabla();
+}
+
+/* ================= DOCUMENTOS (índice) ================= */
+function renderDocumentos(main){
+  main.innerHTML = `
+    <div class="topbar"><div><h2>Documentos</h2><p class="desc">Genere e imprima los documentos oficiales de la caja. Funciona sin conexión a internet.</p></div></div>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3 style="margin-top:0">📄 Ficha de ingreso de socio</h3>
+        <p style="color:var(--tinta-suave);font-size:13.5px">Registro formal de una persona socia (Art. 4).</p>
+        <select id="docSocioSel1" style="margin-bottom:10px">${DB.socios.map(s=>`<option value="${s.id}">${esc(s.nombres)}</option>`).join('') || '<option>No hay socios</option>'}</select>
+        <button class="btn btn-primary btn-sm" onclick="genFichaIngreso(document.getElementById('docSocioSel1').value)" ${!DB.socios.length?'disabled':''}>Generar</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">📄 Certificado de aporte de capital</h3>
+        <p style="color:var(--tinta-suave);font-size:13.5px">Constancia de aportes de un socio (Art. 4 - Aportes).</p>
+        <select id="docSocioSel2" style="margin-bottom:10px">${DB.socios.map(s=>`<option value="${s.id}">${esc(s.nombres)}</option>`).join('') || '<option>No hay socios</option>'}</select>
+        <button class="btn btn-primary btn-sm" onclick="genCertificadoAporte(document.getElementById('docSocioSel2').value)" ${!DB.socios.length?'disabled':''}>Generar</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">📄 Solicitud de crédito</h3>
+        <p style="color:var(--tinta-suave);font-size:13.5px">Formato oficial de solicitud (Art. 13 procedimiento).</p>
+        <select id="docCredSel1" style="margin-bottom:10px">${DB.creditos.map(c=>`<option value="${c.id}">#${c.numero} — ${esc(socioById(c.solicitanteId)?.nombres||'')}</option>`).join('') || '<option>No hay créditos</option>'}</select>
+        <button class="btn btn-primary btn-sm" onclick="genSolicitudCredito(document.getElementById('docCredSel1').value)" ${!DB.creditos.length?'disabled':''}>Generar</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">📄 Acta de aprobación de crédito</h3>
+        <p style="color:var(--tinta-suave);font-size:13.5px">Resolución del Comité de Crédito.</p>
+        <select id="docCredSel2" style="margin-bottom:10px">${DB.creditos.filter(c=>c.estado!=='solicitado').map(c=>`<option value="${c.id}">#${c.numero} — ${esc(socioById(c.solicitanteId)?.nombres||'')}</option>`).join('') || '<option>No hay créditos resueltos</option>'}</select>
+        <button class="btn btn-primary btn-sm" onclick="genAprobacionCredito(document.getElementById('docCredSel2').value)" ${!DB.creditos.filter(c=>c.estado!=='solicitado').length?'disabled':''}>Generar</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">📄 Acta de entrega-recepción</h3>
+        <p style="color:var(--tinta-suave);font-size:13.5px">Constancia de desembolso del crédito al socio.</p>
+        <select id="docCredSel3" style="margin-bottom:10px">${DB.creditos.filter(c=>c.fechaDesembolso).map(c=>`<option value="${c.id}">#${c.numero} — ${esc(socioById(c.solicitanteId)?.nombres||'')}</option>`).join('') || '<option>No hay créditos desembolsados</option>'}</select>
+        <button class="btn btn-primary btn-sm" onclick="genEntregaCredito(document.getElementById('docCredSel3').value)" ${!DB.creditos.filter(c=>c.fechaDesembolso).length?'disabled':''}>Generar</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ---- Generadores de documentos imprimibles ---- */
+function fechaLarga(iso){
+  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const d = new Date((iso||todayISO())+'T00:00:00');
+  return `${d.getDate()} de ${meses[d.getMonth()]} de ${d.getFullYear()}`;
+}
+function printDoc(html){
+  document.getElementById('printArea').innerHTML = html;
+  showDocPreview(html);
+}
+function showDocPreview(html){
+  let bg = document.getElementById('docModalBg');
+  if(!bg){
+    bg = document.createElement('div'); bg.id='docModalBg'; bg.className='modal-bg';
+    bg.innerHTML = `<div class="modal" id="docModalInner" style="max-width:840px"></div>`;
+    document.body.appendChild(bg);
+    bg.addEventListener('click',(e)=>{ if(e.target===bg) closeDocModal(); });
+  }
+  document.getElementById('docModalInner').innerHTML = `
+    <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <h3 style="margin:0">Vista previa del documento</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-gold btn-sm" onclick="window.print()">Imprimir / Guardar PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeDocModal()">Cerrar</button>
+      </div>
+    </div>
+    <div style="border:1px solid var(--borde);border-radius:10px;padding:26px;max-height:68vh;overflow-y:auto;background:#fdfcf8">${html}</div>
+  `;
+  bg.classList.add('show');
+}
+function closeDocModal(){ const bg = document.getElementById('docModalBg'); if(bg) bg.classList.remove('show'); }
+function membreteHTML(){
+  return `<div style="text-align:center;margin-bottom:6px">
+    <div style="font-size:11px;letter-spacing:.08em;color:#555">COMUNIDAD ${esc(DB.config.comunidad.toUpperCase())} - PARROQUIA ${esc(DB.config.parroquia.toUpperCase())} - ${esc(DB.config.canton.toUpperCase())} - ${esc(DB.config.provincia.toUpperCase())}</div>
+  </div>`;
+}
+function genFichaIngreso(socioId){
+  const s = socioById(socioId); if(!s) return;
+  printDoc(`<div class="doc-page">
+    ${membreteHTML()}
+    <h2>${esc(DB.config.nombreCaja)}</h2>
+    <div class="doc-sub">SOLICITUD DE INGRESO DE SOCIO - Art. 4 del Reglamento</div>
+    <p>En la comunidad ${esc(DB.config.comunidad)}, parroquia ${esc(DB.config.parroquia)}, canton ${esc(DB.config.canton)}, provincia de ${esc(DB.config.provincia)}, a los ${fechaLarga(s.fechaIngreso)}, quien suscribe solicita a la Asamblea General su ingreso como persona socia de la ${esc(DB.config.nombreCaja)}, para lo cual declara los siguientes datos:</p>
+    <table style="width:100%">
+      <tr><th style="width:40%">Nombres completos</th><td>${esc(s.nombres)}</td></tr>
+      <tr><th>Cedula</th><td>${esc(s.cedula||'-')}</td></tr>
+      <tr><th>Telefono</th><td>${esc(s.telefono||'-')}</td></tr>
+      <tr><th>Direccion</th><td>${esc(s.direccion||'-')}</td></tr>
+      <tr><th>Fecha de solicitud</th><td>${fmtDate(s.fechaIngreso)}</td></tr>
+      <tr><th>Tipo de socio</th><td>${s.esComunidad?'Socio de la comunidad':'Cliente / usuario externo'}</td></tr>
+      <tr><th>Beneficiario designado (Art. 7 Aportes)</th><td>${esc(s.beneficiario||'No registrado')}</td></tr>
+      <tr><th>Aporte de capital entregado</th><td>${fmt(totalAportesSocio(s))}</td></tr>
+    </table>
+    <p>El/la solicitante declara conocer y aceptar el Reglamento de la ${esc(DB.config.nombreCaja)}, comprometiendose a cumplir con los deberes de las personas socias (Art. 6) y a completar los aportes de capital establecidos.</p>
+    <div class="doc-signs"><div>Firma del solicitante<br>C.I. ${esc(s.cedula||'____________')}</div><div>Firma del/la Gerente</div><div>Resolucion de Asamblea</div></div>
+  </div>`);
+}
+function genCertificadoAporte(socioId){
+  const s = socioById(socioId); if(!s) return;
+  const total = totalAportesSocio(s);
+  printDoc(`<div class="doc-page">
+    ${membreteHTML()}
+    <h2>${esc(DB.config.nombreCaja)}</h2>
+    <div class="doc-sub">CERTIFICADO DE APORTE DE CAPITAL - Art. 4</div>
+    <p>Se certifica que <strong>${esc(s.nombres)}</strong>, socio(a) de la caja desde el ${fmtDate(s.fechaIngreso)}, mantiene un aporte de capital acumulado de:</p>
+    <p style="text-align:center;font-size:22px;font-family:var(--font-disp);margin:16px 0">${fmt(total)}</p>
+    <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th></tr></thead><tbody>
+    ${(s.aportes||[]).map(a=>`<tr><td>${fmtDate(a.fecha)}</td><td>${esc(a.tipo)}</td><td>${fmt(a.monto)}</td></tr>`).join('') || '<tr><td colspan="3">Sin aportes registrados</td></tr>'}
+    </tbody></table>
+    <p style="margin-top:14px;font-size:12px;color:#555">Este certificado es el unico documento probatorio de los aportes realizados, segun el Art. 4 del Reglamento de Aportes de Capital. No es transferible sin autorizacion de la Asamblea.</p>
+    <div class="doc-signs"><div>Firma del/la Tesorero/a</div><div>Firma del/la Gerente</div></div>
+  </div>`);
+}
+function genSolicitudCredito(credId){
+  const c = DB.creditos.find(x=>x.id===credId); if(!c) return;
+  const s = socioById(c.solicitanteId);
+  printDoc(`<div class="doc-page">
+    ${membreteHTML()}
+    <h2>${esc(DB.config.nombreCaja)}</h2>
+    <div class="doc-sub">SOLICITUD DE CREDITO N. ${c.numero} - Art. 13 del Reglamento de Creditos</div>
+    <p>Senor/a Gerente de la ${esc(DB.config.nombreCaja)}. En la comunidad ${esc(DB.config.comunidad)}, a los ${fechaLarga(c.fechaSolicitud)}, yo, <strong>${esc(s?s.nombres:'-')}</strong>, portador(a) de la cedula N. ${esc(s&&s.cedula||'____________')}, comparezco ante usted para solicitar un credito con las siguientes caracteristicas:</p>
+    <table style="width:100%">
+      <tr><th style="width:40%">Monto solicitado</th><td>${fmt(c.monto)}</td></tr>
+      <tr><th>Plazo</th><td>${c.plazoMeses} meses</td></tr>
+      <tr><th>Tasa de interes (Art. 7)</th><td>${c.tasaInteres}% anual</td></tr>
+      <tr><th>Destino del credito (Art. 3)</th><td>${c.destino==='productivo'?'Actividad productiva':'Consumo'}</td></tr>
+      <tr><th>Garante (Art. 12)</th><td>${esc(c.garante||'No aplica')}</td></tr>
+      <tr><th>Conyuge (Art. 12b)</th><td>${esc(c.conyuge||'________________________')}</td></tr>
+    </table>
+    <p>Declaro estar al dia en mis aportes de capital, multas, garantias y demas obligaciones con la Caja, conforme lo exige el Art. 12 del Reglamento de Creditos, y me comprometo a sujetarme a lo que resuelva el Comite de Credito.</p>
+    <div class="doc-signs"><div>Firma del solicitante</div><div>Firma del garante (si aplica)</div><div>Recibido por Tesoreria<br>Fecha: ______________</div></div>
+  </div>`);
+}
+function genAprobacionCredito(credId){
+  const c = DB.creditos.find(x=>x.id===credId); if(!c) return;
+  const s = socioById(c.solicitanteId);
+  const aprobado = c.estado!=='rechazado';
+  printDoc(`<div class="doc-page">
+    ${membreteHTML()}
+    <h2>${esc(DB.config.nombreCaja)}</h2>
+    <div class="doc-sub">ACTA DE RESOLUCION DEL COMITE DE CREDITO - Solicitud N. ${c.numero}</div>
+    <p>En la comunidad ${esc(DB.config.comunidad)}, a los ${fechaLarga(c.fechaAprobacion||todayISO())}, se reunio el Comite de Credito de la ${esc(DB.config.nombreCaja)}, integrado por el/la Gerente, Tesorero/a y Secretario/a conforme al Art. 21 del Reglamento, con el objeto de analizar y calificar la solicitud de credito N. ${c.numero} presentada por <strong>${esc(s?s.nombres:'-')}</strong> con fecha ${fmtDate(c.fechaSolicitud)}.</p>
+    <p>Luego de revisar el cumplimiento de los requisitos del Art. 12 del Reglamento de Creditos, el Comite de Credito resuelve:</p>
+    <p style="text-align:center;font-size:18px;font-family:var(--font-disp);margin:16px 0;color:${aprobado?'#1E4A34':'#B5473A'}">${aprobado?'APROBAR EL CREDITO SOLICITADO':'NEGAR EL CREDITO SOLICITADO'}</p>
+    <table style="width:100%">
+      <tr><th style="width:40%">Monto</th><td>${fmt(c.monto)}</td></tr>
+      <tr><th>Plazo</th><td>${c.plazoMeses} meses</td></tr>
+      <tr><th>Tasa de interes</th><td>${c.tasaInteres}% anual</td></tr>
+      <tr><th>Sistema de amortizacion</th><td>Frances (cuota fija mensual)</td></tr>
+      <tr><th>Fecha de resolucion</th><td>${fmtDate(c.fechaAprobacion||todayISO())}</td></tr>
+    </table>
+    ${aprobado?`<p>Conforme al Art. 13 del Reglamento, el desembolso se realizara dentro de las 72 horas posteriores a esta resolucion, los dias sabado en el horario de 16h00 a 18h30, respetando el orden de ingreso de las solicitudes.</p>`:`<p>Se notificara al/la solicitante los motivos de la negativa, quedando a salvo su derecho a presentar una nueva solicitud una vez subsanadas las observaciones.</p>`}
+    <div class="doc-signs"><div>Gerente</div><div>Tesorero/a</div><div>Secretario/a</div></div>
+  </div>`);
+}
+function genEntregaCredito(credId){
+  const c = DB.creditos.find(x=>x.id===credId); if(!c) return;
+  const s = socioById(c.solicitanteId);
+  printDoc(`<div class="doc-page">
+    ${membreteHTML()}
+    <h2>${esc(DB.config.nombreCaja)}</h2>
+    <div class="doc-sub">ACTA DE ENTREGA-RECEPCION DE CREDITO N. ${c.numero}</div>
+    <p>En la comunidad ${esc(DB.config.comunidad)}, parroquia ${esc(DB.config.parroquia)}, a los ${fechaLarga(c.fechaDesembolso||todayISO())}, comparecen por una parte la ${esc(DB.config.nombreCaja)}, representada por su Tesorero/a, y por otra <strong>${esc(s?s.nombres:'-')}</strong>, portador(a) de la cedula N. ${esc(s&&s.cedula||'____________')}, en calidad de beneficiario/a, quienes libre y voluntariamente convienen en celebrar la presente Acta de Entrega-Recepcion de credito, al tenor de las siguientes clausulas:</p>
+    <table style="width:100%">
+      <tr><th style="width:40%">Monto entregado</th><td>${fmt(c.monto)}</td></tr>
+      <tr><th>Plazo</th><td>${c.plazoMeses} meses</td></tr>
+      <tr><th>Tasa de interes</th><td>${c.tasaInteres}% anual</td></tr>
+      <tr><th>Sistema de pago (Art. 6)</th><td>Amortizacion francesa, cuotas mensuales</td></tr>
+      <tr><th>Primera cuota</th><td>${c.tabla&&c.tabla[0]?fmtDate(c.tabla[0].fechaVenc):'-'}</td></tr>
+      <tr><th>Ultima cuota</th><td>${c.tabla&&c.tabla.length?fmtDate(c.tabla[c.tabla.length-1].fechaVenc):'-'}</td></tr>
+      <tr><th>Cuota mensual referencial</th><td>${c.tabla&&c.tabla[0]?fmt(c.tabla[0].cuota):'-'}</td></tr>
+      <tr><th>Aporte a Fondo de Desgravamen (Art. 14)</th><td>${fmt(c.aporteDesgravamen||0)}</td></tr>
+      <tr><th>Forma de calculo de mora (Art. 11)</th><td>${c.modoMora==='alFinalPlazo'?'Solo al vencer todo el plazo':'Por cada cuota vencida'} - ${fmt(DB.config.moraDiaria)} por dia</td></tr>
+    </table>
+    <p><strong>PRIMERA:</strong> La Caja hace entrega real y efectiva del monto senalado al/la beneficiario/a, quien declara recibirlo a su entera satisfaccion.</p>
+    <p><strong>SEGUNDA:</strong> El/la beneficiario/a se compromete a cancelar puntualmente cada cuota en las fechas de la tabla de amortizacion adjunta, aceptando la mora establecida en caso de atraso, conforme al Art. 11 del Reglamento de Creditos.</p>
+    <p><strong>TERCERA:</strong> En caso de fallecimiento del/la deudor/a, el saldo pendiente se cubrira con cargo al Fondo de Desgravamen, conforme al Art. 14.</p>
+    <p>Para constancia, firman las partes en la fecha senalada.</p>
+    <div class="doc-signs"><div>Entregado por Tesoreria</div><div>Recibido conforme<br>${esc(s?s.nombres:'Socio/a')}</div></div>
+  </div>`);
+}
+
+/* ================= CONFIGURACIÓN ================= */
+function renderConfig(main){
+  const c = DB.config;
+  main.innerHTML = `
+    <div class="topbar"><div><h2>Configuración</h2><p class="desc">Parámetros del reglamento. Solo la Asamblea General puede autorizar cambios (Art. 13).</p></div></div>
+    <form id="configForm" class="card">
+      <h3 style="margin-top:0">Datos de la caja</h3>
+      <div class="grid grid-2">
+        <div class="field"><label>Nombre de la caja</label><input name="nombreCaja" value="${esc(c.nombreCaja)}"></div>
+        <div class="field"><label>Comunidad</label><input name="comunidad" value="${esc(c.comunidad)}"></div>
+        <div class="field"><label>Parroquia</label><input name="parroquia" value="${esc(c.parroquia)}"></div>
+        <div class="field"><label>Cantón</label><input name="canton" value="${esc(c.canton)}"></div>
+        <div class="field"><label>Provincia</label><input name="provincia" value="${esc(c.provincia)}"></div>
+      </div>
+      <div class="leaf-divider"></div>
+      <h3>Aportes de capital</h3>
+      <div class="grid grid-3">
+        <div class="field"><label>Aporte inicial (US$)</label><input type="number" step="0.01" name="aporteInicial" value="${c.aporteInicial}"></div>
+        <div class="field"><label>Aporte mensual mínimo (US$)</label><input type="number" step="0.01" name="aporteMensual" value="${c.aporteMensual}"></div>
+        <div class="field"><label>Tope de aporte (US$)</label><input type="number" step="0.01" name="aporteMaximo" value="${c.aporteMaximo}"></div>
+      </div>
+      <div class="leaf-divider"></div>
+      <h3>Créditos</h3>
+      <div class="grid grid-3">
+        <div class="field"><label>Tasa socios (% anual)</label><input type="number" step="0.1" name="tasaSocio" value="${c.tasaSocio}"></div>
+        <div class="field"><label>Tasa clientes (% anual)</label><input type="number" step="0.1" name="tasaNoSocio" value="${c.tasaNoSocio}"></div>
+        <div class="field"><label>Monto mínimo (US$)</label><input type="number" step="1" name="montoMin" value="${c.montoMin}"></div>
+        <div class="field"><label>Monto máximo socios (US$)</label><input type="number" step="1" name="montoMaxSocio" value="${c.montoMaxSocio}"></div>
+        <div class="field"><label>Monto máximo clientes (US$)</label><input type="number" step="1" name="montoMaxNoSocio" value="${c.montoMaxNoSocio}"></div>
+        <div class="field"><label>Mora diaria (US$/día)</label><input type="number" step="0.01" name="moraDiaria" value="${c.moraDiaria}"></div>
+        <div class="field"><label>Desgravamen por mes de plazo (US$)</label><input type="number" step="0.01" name="desgravamenPorMes" value="${c.desgravamenPorMes}"></div>
+      </div>
+      <div class="leaf-divider"></div>
+      <h3>Ahorros</h3>
+      <div class="grid grid-3">
+        <div class="field"><label>Tasa de interés (% anual)</label><input type="number" step="0.1" name="tasaAhorro" value="${c.tasaAhorro}"></div>
+        <div class="field"><label>Monto mínimo (US$)</label><input type="number" step="1" name="ahorroMinimo" value="${c.ahorroMinimo}"></div>
+        <div class="field"><label>Plazo mínimo (meses)</label><input type="number" step="1" name="ahorroPlazoMinMeses" value="${c.ahorroPlazoMinMeses}"></div>
+      </div>
+      <div class="leaf-divider"></div>
+      <h3>Multas y sanciones (Art. 8)</h3>
+      <div class="grid grid-3">
+        <div class="field"><label>Atraso a asamblea (US$)</label><input type="number" step="0.01" name="multaAtraso" value="${c.multaAtraso}"></div>
+        <div class="field"><label>Falta injustificada (US$)</label><input type="number" step="0.01" name="multaInasistencia" value="${c.multaInasistencia}"></div>
+        <div class="field"><label>Desorden en asamblea (US$)</label><input type="number" step="0.01" name="multaDesorden" value="${c.multaDesorden}"></div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top:14px">Guardar configuración</button>
+    </form>
+  `;
+  document.getElementById('configForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(e.target).entries());
+    Object.keys(d).forEach(k=>{
+      const num = Number(d[k]);
+      DB.config[k] = isNaN(num) || d[k]==='' ? d[k] : (['nombreCaja','comunidad','parroquia','canton','provincia'].includes(k) ? d[k] : num);
+    });
+    saveDB(); toast('Configuración actualizada');
+  });
+}
+
+/* ================= RESPALDO / SINCRONIZACIÓN ================= */
+function renderRespaldo(main){
+  main.innerHTML = `
+    <div class="topbar"><div><h2>Respaldo de datos</h2><p class="desc">La app funciona sin internet. Use esta sección para crear una copia de seguridad o pasar los datos a otro dispositivo cuando haya conexión.</p></div></div>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3 style="margin-top:0">⬇️ Exportar respaldo</h3>
+        <p style="font-size:13.5px;color:var(--tinta-suave)">Descarga un archivo con todos los datos de la caja (socios, créditos, ahorros, configuración). Guárdelo en un USB, correo o Drive.</p>
+        <button class="btn btn-primary" onclick="exportarRespaldo()">Descargar respaldo (.json)</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">⬆️ Restaurar respaldo</h3>
+        <p style="font-size:13.5px;color:var(--tinta-suave)">Cargue un archivo de respaldo previamente exportado. <strong>Esto reemplazará los datos actuales</strong> en este dispositivo.</p>
+        <input type="file" id="restoreFile" accept="application/json" style="margin-bottom:10px">
+        <br><button class="btn btn-gold" onclick="restaurarRespaldo()">Restaurar desde archivo</button>
+      </div>
+    </div>
+    <div class="leaf-divider"></div>
+    <div class="card">
+      <h3 style="margin-top:0">Estado de almacenamiento</h3>
+      <p style="font-size:13.5px">Tamaño actual de los datos: <strong>${(new Blob([JSON.stringify(DB)]).size/1024).toFixed(1)} KB</strong> guardados localmente en este navegador/dispositivo.</p>
+      <p style="font-size:12px;color:var(--tinta-suave)">Consejo: exporte un respaldo periódicamente (por ejemplo, después de cada asamblea) para no perder información si el dispositivo se daña o se borra el navegador.</p>
+    </div>
+  `;
+}
+function exportarRespaldo(){
+  const blob = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `respaldo-caja-osf-${todayISO()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('Respaldo descargado');
+}
+function restaurarRespaldo(){
+  const inp = document.getElementById('restoreFile');
+  if(!inp.files.length){ toast('Seleccione un archivo primero','err'); return; }
+  if(!confirm('Esto reemplazará todos los datos actuales en este dispositivo. ¿Continuar?')) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      DB = parsed;
+      DB.config = Object.assign({}, CFG_DEFAULT, DB.config||{});
+      DB.socios = DB.socios||[]; DB.creditos = DB.creditos||[]; DB.ahorros = DB.ahorros||[];
+      DB.movAhorros = DB.movAhorros||[]; DB.multas = DB.multas||[]; DB.fondos = DB.fondos||{social:0,desgravamen:0,riesgos:0};
+      saveDB(); toast('Datos restaurados correctamente'); render();
+    }catch(err){ toast('Archivo inválido','err'); }
+  };
+  reader.readAsText(inp.files[0]);
+}
+
+/* ================= MODAL genérico ================= */
+let _modalOnConfirm = null;
+function showModal(title, desc, bodyHTML, onConfirm, hideConfirm){
+  let bg = document.getElementById('modalBg');
+  if(!bg){
+    bg = document.createElement('div'); bg.id='modalBg'; bg.className='modal-bg';
+    bg.innerHTML = `<div class="modal" id="modalInner"></div>`;
+    document.body.appendChild(bg);
+    bg.addEventListener('click', (e)=>{ if(e.target===bg) closeModal(); });
+  }
+  _modalOnConfirm = onConfirm;
+  document.getElementById('modalInner').innerHTML = `
+    <h3>${esc(title)}</h3>
+    <div class="modal-desc">${esc(desc||'')}</div>
+    ${bodyHTML}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cerrar</button>
+      ${hideConfirm?'':'<button class="btn btn-primary" onclick="confirmModal()">Guardar</button>'}
+    </div>
+  `;
+  bg.classList.add('show');
+}
+function confirmModal(){
+  if(_modalOnConfirm){ const ok = _modalOnConfirm(); if(ok===false) return; }
+  closeModal();
+}
+function closeModal(){ const bg = document.getElementById('modalBg'); if(bg) bg.classList.remove('show'); }
+
+/* ================= Conexión / offline ================= */
+function updateConnStatus(){
+  const online = navigator.onLine;
+  const dot = document.getElementById('connDot'); const txt = document.getElementById('connTxt'); const dotM = document.getElementById('connDotMobile');
+  if(dot){ dot.className = 'dot ' + (online?'on':'off'); }
+  if(txt){ txt.textContent = online ? 'Conectado' : 'Sin conexión — funcionando offline'; }
+  if(dotM){ dotM.style.color = online ? '#79C99B' : '#D4A24C'; }
+}
+window.addEventListener('online', updateConnStatus);
+window.addEventListener('offline', updateConnStatus);
+
+/* ================= Init ================= */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  render();
+  updateConnStatus();
+});
+</script>
+</body>
+</html>

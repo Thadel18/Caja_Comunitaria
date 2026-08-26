@@ -1,0 +1,16 @@
+{
+  "name": "Caja Omaguas San Francisco",
+  "short_name": "Caja OSF",
+  "description": "Sistema de gestión de la Caja de Ahorro y Crédito Omaguas San Francisco",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F7F4EC",
+  "theme_color": "#1E4A34",
+  "orientation": "any",
+  "lang": "es-EC",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
