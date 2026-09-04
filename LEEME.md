@@ -63,23 +63,38 @@ aparecer: cierre por completo el navegador y vuelva a abrir el enlace, o
 pruebe primero en modo incógnito para descartar una copia vieja guardada en
 caché.
 
-## Sincronización con Google Sheets (saldos de los socios)
-Dentro de la app, en la pestaña **"Google Sheets"**, encontrará el paso a
-paso con un código listo para copiar y pegar en Google Apps Script. En
-resumen:
+## Ver los mismos datos en el celular y en la web (sincronización real)
+Como la app guarda los datos dentro de cada navegador/celular, por defecto
+**cada dispositivo tiene su propia copia** — por eso lo que ingresa en un
+celular no aparecía en la web. La pestaña **"Google Sheets"** de la app
+resuelve esto usando una hoja de cálculo de Google como "nube" compartida
+entre sus 3 terminales (los celulares y la computadora). En resumen:
 1. Cree una hoja de cálculo en Google Sheets.
-2. Extensiones → Apps Script → pegue el código que la app le muestra.
+2. Extensiones → Apps Script → pegue el código que la pestaña "Google
+   Sheets" de la app le muestra (botón "Copiar código").
 3. Implementar → Nueva implementación → tipo "Aplicación web" → acceso
    "Cualquier usuario" → Implementar.
-4. Copie la URL que termina en `/exec` y péguela en la pestaña "Google
-   Sheets" de la app.
+4. Copie la URL que termina en `/exec`.
+5. Péguela en la pestaña "Google Sheets" de **cada uno de los 3
+   dispositivos** (misma URL en los tres) y presione "Guardar
+   configuración".
 
-Cada vez que presione "Sincronizar ahora" (o automáticamente, si activa esa
-opción), la app enviará a esa hoja de cálculo los saldos actuales de cada
-socio (aporte de capital, ahorro voluntario, ahorro a plazo fijo, saldo de
-créditos y mora pendiente) y un resumen general de la caja. Esto requiere
-conexión a internet en el momento de sincronizar; el resto del tiempo la
-app sigue funcionando sin internet con normalidad.
+Desde ahí, cada dispositivo tiene dos botones: **"📤 Subir"** (envía lo que
+tiene ese dispositivo a la nube) y **"📥 Traer"** (descarga lo más reciente
+de la nube a ese dispositivo). La app también revisa sola, cada vez que la
+abre con internet, si hay algo más reciente en la nube, y se lo pregunta
+antes de reemplazar sus datos locales. Sugerencia práctica: use un
+dispositivo como "principal" para ingresar los datos del día, suba desde
+ahí, y en los otros dos use "Traer" para ponerse al día — si dos personas
+editan al mismo tiempo sin sincronizar entre medio, el que suba de último
+sobrescribe al otro. Todo esto requiere internet solo en el momento de
+sincronizar; el resto del tiempo la app sigue funcionando sin conexión con
+normalidad.
+
+Si ya había configurado una versión anterior de esta conexión, debe
+reemplazar el código en Apps Script por el nuevo (la pestaña se lo indica)
+y volver a implementarlo desde "Administrar implementaciones" para que la
+misma URL empiece a funcionar en los dos sentidos.
 
 ## Cómo se guardan los datos
 Todos los datos (socios, créditos, ahorros, etc.) se guardan **dentro del

@@ -311,16 +311,18 @@ function loadDB(){
       parsed.movAhorros = parsed.movAhorros||[];
       parsed.multas = parsed.multas||[];
       parsed.fondos = Object.assign({ social:0, desgravamen:0, riesgos:0 }, parsed.fondos||{});
+      parsed.ultimaModificacion = parsed.ultimaModificacion || new Date().toISOString();
       return parsed;
     }
   }catch(e){ console.error('Error cargando datos', e); }
-  return { socios:[], creditos:[], ahorros:[], movAhorros:[], multas:[], fondos:{social:0,desgravamen:0,riesgos:0}, config: Object.assign({},CFG_DEFAULT) };
+  return { socios:[], creditos:[], ahorros:[], movAhorros:[], multas:[], fondos:{social:0,desgravamen:0,riesgos:0}, config: Object.assign({},CFG_DEFAULT), ultimaModificacion: new Date().toISOString() };
 }
-function saveDB(){
+function saveDB(sinMarcarModificacion){
+  if(!sinMarcarModificacion) DB.ultimaModificacion = new Date().toISOString();
   localStorage.setItem(DB_KEY, JSON.stringify(DB));
   const t = document.getElementById('lastSaveTxt');
   if(t) t.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit'});
-  if(DB.config.googleSheetsUrl && DB.config.googleSheetsAutoSync){
+  if(!sinMarcarModificacion && DB.config.googleSheetsUrl && DB.config.googleSheetsAutoSync){
     clearTimeout(window._syncTimeout);
     window._syncTimeout = setTimeout(()=>sincronizarGoogleSheets(false), 3500);
   }
@@ -1572,18 +1574,27 @@ function renderConfig(main){
 }
 
 /* ================= RESPALDO / SINCRONIZACIÓN ================= */
-/* ================= GOOGLE SHEETS (sincronización de saldos) ================= */
+/* ================= GOOGLE SHEETS (sincronizacion bidireccional) ================= */
 const GOOGLE_SCRIPT_CODE = `function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // ---- Hoja "Saldos_Socios" ----
+    // ---- Hoja "AppData": guarda una copia completa de la base de datos de la app ----
+    // Esto es lo que permite ver los mismos datos en varios celulares y en la web.
+    var appData = ss.getSheetByName('AppData');
+    if (!appData) appData = ss.insertSheet('AppData');
+    appData.getRange('A1').setValue('ultimaModificacion');
+    appData.getRange('B1').setValue('datosCompletos (no editar a mano)');
+    appData.getRange('A2').setValue(data.ultimaModificacion || new Date().toISOString());
+    appData.getRange('B2').setValue(JSON.stringify(data.dbCompleta || {}));
+
+    // ---- Hoja "Saldos_Socios": copia de lectura facil para revisar en Sheets ----
     var hoja = ss.getSheetByName('Saldos_Socios');
     if (!hoja) hoja = ss.insertSheet('Saldos_Socios');
     hoja.clearContents();
     hoja.appendRow(['Nombre','Cedula','Tipo','Estado','Aporte de Capital','Ahorro Voluntario','Ahorro Plazo Fijo','Saldo de Creditos','Mora Pendiente','Actualizado']);
-    data.socios.forEach(function(s){
+    (data.socios || []).forEach(function(s){
       hoja.appendRow([s.nombre, s.cedula, s.tipo, s.estado, s.aporteCapital, s.ahorroVoluntario, s.ahorroPlazo, s.saldoCreditos, s.moraPendiente, data.fechaSync]);
     });
     hoja.getRange(1,1,1,10).setFontWeight('bold');
@@ -1594,14 +1605,14 @@ const GOOGLE_SCRIPT_CODE = `function doPost(e) {
     if (!resumen) resumen = ss.insertSheet('Resumen_Caja');
     resumen.clearContents();
     resumen.appendRow(['Indicador','Valor']);
-    Object.keys(data.resumen).forEach(function(k){
+    Object.keys(data.resumen || {}).forEach(function(k){
       resumen.appendRow([k, data.resumen[k]]);
     });
     resumen.appendRow(['Ultima actualizacion', data.fechaSync]);
     resumen.getRange(1,1,1,2).setFontWeight('bold');
     resumen.autoResizeColumns(1,2);
 
-    return ContentService.createTextOutput(JSON.stringify({ok:true, socios:data.socios.length}))
+    return ContentService.createTextOutput(JSON.stringify({ok:true, socios:(data.socios||[]).length}))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ok:false, error:String(err)}))
@@ -1610,8 +1621,22 @@ const GOOGLE_SCRIPT_CODE = `function doPost(e) {
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({ok:true, mensaje:'Web App de la Caja Omaguas San Francisco activo.'}))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var appData = ss.getSheetByName('AppData');
+    if (!appData) {
+      return ContentService.createTextOutput(JSON.stringify({ok:true, dbCompleta:null, ultimaModificacion:null}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    var ultimaModificacion = appData.getRange('A2').getValue();
+    var datosTexto = appData.getRange('B2').getValue();
+    var dbCompleta = datosTexto ? JSON.parse(datosTexto) : null;
+    return ContentService.createTextOutput(JSON.stringify({ok:true, dbCompleta:dbCompleta, ultimaModificacion:ultimaModificacion}))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ok:false, error:String(err)}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }`;
 
 function construirPayloadSheets(){
@@ -1633,34 +1658,68 @@ function construirPayloadSheets(){
     'Fondo de desgravamen': DB.fondos.desgravamen,
     'Fondo de gestion de riesgos': DB.fondos.riesgos,
   };
-  return { fechaSync: new Date().toLocaleString('es-EC'), socios, resumen };
+  return { fechaSync: new Date().toLocaleString('es-EC'), ultimaModificacion: DB.ultimaModificacion, dbCompleta: DB, socios, resumen };
 }
+// Sube (empuja) los datos de ESTE dispositivo hacia Google Sheets, sobrescribiendo lo que hubiera ahi.
 async function sincronizarGoogleSheets(manual){
   const url = (DB.config.googleSheetsUrl||'').trim();
   if(!url){ if(manual) toast('Primero configure la URL del Web App de Google Apps Script','err'); return; }
-  if(!navigator.onLine){ if(manual) toast('Sin conexión — no se puede sincronizar ahora mismo. Se reintentará cuando vuelva la señal.','err'); return; }
+  if(!navigator.onLine){ if(manual) toast('Sin conexión — no se puede sincronizar ahora mismo.','err'); return; }
   const payload = construirPayloadSheets();
   try{
     const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
     let json = {ok:true};
     try{ json = await resp.json(); }catch(_e){}
     DB.config.googleSheetsUltimaSync = new Date().toISOString();
-    DB.config.googleSheetsUltimoResultado = json.ok ? `Sincronizado: ${json.socios!=null?json.socios:payload.socios.length} socio(s)` : `Error: ${json.error||'respuesta inesperada'}`;
-    localStorage.setItem(DB_KEY, JSON.stringify(DB));
-    if(manual) toast(json.ok ? 'Sincronizado con Google Sheets correctamente' : 'Google Sheets respondió con un error — revise el código pegado en Apps Script', !json.ok);
+    DB.config.googleSheetsUltimoResultado = json.ok ? `Subido correctamente: ${json.socios!=null?json.socios:payload.socios.length} socio(s)` : `Error: ${json.error||'respuesta inesperada'}`;
+    saveDB(true);
+    if(manual) toast(json.ok ? 'Datos subidos a Google Sheets correctamente' : 'Google Sheets respondió con un error — revise el código pegado en Apps Script', !json.ok);
   }catch(err){
     DB.config.googleSheetsUltimoResultado = 'No se pudo conectar (revise la URL o que la implementación sea pública)';
-    localStorage.setItem(DB_KEY, JSON.stringify(DB));
-    if(manual) toast('No se pudo sincronizar con Google Sheets','err');
+    saveDB(true);
+    if(manual) toast('No se pudo subir a Google Sheets','err');
   }
   if(currentTab==='sheets') renderGoogleSheets(document.getElementById('mainContent'));
+}
+// Trae (descarga) los datos guardados en Google Sheets y los compara con los de este dispositivo.
+// Si lo de Sheets es mas reciente, pregunta antes de reemplazar los datos locales.
+async function traerActualizacionesGoogleSheets(manual){
+  const url = (DB.config.googleSheetsUrl||'').trim();
+  if(!url){ if(manual) toast('Primero configure la URL del Web App de Google Apps Script','err'); return; }
+  if(!navigator.onLine){ if(manual) toast('Sin conexión — no se puede buscar actualizaciones ahora mismo.','err'); return; }
+  try{
+    const resp = await fetch(url, { method:'GET' });
+    const json = await resp.json();
+    if(!json.ok){ if(manual) toast('Google Sheets respondió con un error al buscar actualizaciones','err'); return; }
+    if(!json.dbCompleta || !json.ultimaModificacion){ if(manual) toast('Todavía no hay datos guardados en Google Sheets — suba primero desde algún dispositivo.'); return; }
+    const remotoFecha = new Date(json.ultimaModificacion).getTime();
+    const localFecha = new Date(DB.ultimaModificacion||0).getTime();
+    if(remotoFecha <= localFecha){
+      if(manual) toast('Ya tiene los datos más recientes en este dispositivo.');
+      return;
+    }
+    const cuando = new Date(json.ultimaModificacion).toLocaleString('es-EC');
+    const confirmar = confirm(`Hay datos más recientes en Google Sheets, actualizados el ${cuando}.\n\n¿Desea traerlos a este dispositivo? Esto reemplazará los datos que tiene guardados aquí ahora mismo.`);
+    if(!confirmar) return;
+    const nuevaDB = json.dbCompleta;
+    nuevaDB.config = Object.assign({}, DB.config, nuevaDB.config||{});
+    nuevaDB.socios = nuevaDB.socios||[]; nuevaDB.creditos = nuevaDB.creditos||[]; nuevaDB.ahorros = nuevaDB.ahorros||[];
+    nuevaDB.movAhorros = nuevaDB.movAhorros||[]; nuevaDB.multas = nuevaDB.multas||[];
+    nuevaDB.fondos = Object.assign({social:0,desgravamen:0,riesgos:0}, nuevaDB.fondos||{});
+    DB = nuevaDB;
+    saveDB(true);
+    toast('Datos actualizados desde Google Sheets');
+    render();
+  }catch(err){
+    if(manual) toast('No se pudo conectar con Google Sheets para buscar actualizaciones','err');
+  }
 }
 function guardarConfigSheets(){
   const url = document.getElementById('sheetsUrlInput').value.trim();
   const auto = document.getElementById('sheetsAutoChk').checked;
   DB.config.googleSheetsUrl = url;
   DB.config.googleSheetsAutoSync = auto;
-  saveDB(); toast('Configuración de Google Sheets guardada');
+  saveDB(true); toast('Configuración de Google Sheets guardada');
 }
 function copiarCodigoAppsScript(){
   navigator.clipboard.writeText(GOOGLE_SCRIPT_CODE).then(()=>toast('Código copiado — péguelo en Apps Script')).catch(()=>toast('No se pudo copiar automáticamente; selecciónelo y copie manualmente','err'));
@@ -1668,17 +1727,23 @@ function copiarCodigoAppsScript(){
 function renderGoogleSheets(main){
   const c = DB.config;
   main.innerHTML = `
-    <div class="topbar"><div><h2>Sincronización con Google Sheets</h2><p class="desc">Guarda una copia de los saldos de los socios (aportes, ahorros, créditos y mora) en una hoja de cálculo de Google, accesible desde cualquier lugar con internet.</p></div></div>
+    <div class="topbar"><div><h2>Sincronización con Google Sheets</h2><p class="desc">Use una misma hoja de cálculo de Google como "nube" para ver los mismos datos en varios celulares y en la web.</p></div></div>
+
+    <div class="card" style="margin-bottom:16px;border-color:var(--oro-500)">
+      <h3 style="margin-top:0">¿Ya tenía la conexión configurada antes?</h3>
+      <p style="font-size:13.5px;color:var(--tinta-suave)">El código de Apps Script cambió para permitir traer los datos de vuelta (antes solo subía). Si ya había pegado una versión anterior, <strong>debe reemplazar el código</strong> por el de abajo y volver a implementar (Implementar → Administrar implementaciones → ícono de lápiz → Versión: Nueva versión → Implementar), manteniendo la misma URL.</p>
+    </div>
 
     <div class="card" style="margin-bottom:16px">
       <h3 style="margin-top:0">Paso 1 — Cree la hoja de cálculo y el Web App</h3>
       <ol style="font-size:13.5px;line-height:1.7;padding-left:20px">
-        <li>Cree una hoja de cálculo nueva en <a href="https://sheets.google.com" target="_blank" rel="noopener">sheets.google.com</a> (por ejemplo, "Caja Omaguas San Francisco — Saldos").</li>
+        <li>Cree una hoja de cálculo nueva en <a href="https://sheets.google.com" target="_blank" rel="noopener">sheets.google.com</a> (por ejemplo, "Caja Omaguas San Francisco — Datos").</li>
         <li>En esa hoja, vaya a <strong>Extensiones → Apps Script</strong>.</li>
         <li>Borre el código de ejemplo y pegue el código de abajo (botón "Copiar código").</li>
         <li>Presione <strong>Guardar</strong>, luego <strong>Implementar → Nueva implementación</strong>.</li>
         <li>En "Seleccionar tipo" elija <strong>Aplicación web</strong>. En "Quién tiene acceso" elija <strong>Cualquier usuario</strong> (Anyone).</li>
         <li>Presione <strong>Implementar</strong>, autorice los permisos que pida Google, y copie la URL que termina en <code>/exec</code>.</li>
+        <li>Use esa misma URL en <strong>los 3 dispositivos</strong> (los celulares y la computadora) en el Paso 2 de abajo.</li>
       </ol>
       <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px">
         <label style="font-weight:600;font-size:12.5px;color:var(--verde-900)">Código para Apps Script (Code.gs)</label>
@@ -1688,25 +1753,31 @@ function renderGoogleSheets(main){
     </div>
 
     <div class="card" style="margin-bottom:16px">
-      <h3 style="margin-top:0">Paso 2 — Conecte la app con esa URL</h3>
+      <h3 style="margin-top:0">Paso 2 — Conecte este dispositivo con esa URL</h3>
       <div class="field"><label>URL del Web App (termina en /exec)</label><input id="sheetsUrlInput" placeholder="https://script.google.com/macros/s/XXXXXXXXXXXX/exec" value="${esc(c.googleSheetsUrl||'')}"></div>
-      <div class="field"><label><input type="checkbox" id="sheetsAutoChk" style="width:auto;display:inline-block;margin-right:6px" ${c.googleSheetsAutoSync?'checked':''}> Sincronizar automáticamente cuando haya internet y se guarden cambios</label></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="guardarConfigSheets()">Guardar configuración</button>
-        <button class="btn btn-gold" onclick="sincronizarGoogleSheets(true)">🔄 Sincronizar ahora</button>
+      <div class="field"><label><input type="checkbox" id="sheetsAutoChk" style="width:auto;display:inline-block;margin-right:6px" ${c.googleSheetsAutoSync?'checked':''}> Subir automáticamente mis cambios cuando haya internet</label></div>
+      <button class="btn btn-primary" onclick="guardarConfigSheets()">Guardar configuración en este dispositivo</button>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin-top:0">Paso 3 — Mantenga los 3 terminales iguales</h3>
+      <p style="font-size:13.5px;color:var(--tinta-suave)">Cada vez que abra la app con internet, ella sola revisa si hay datos más recientes en Google Sheets y le pregunta si desea traerlos. También puede hacerlo manualmente con los botones de abajo:</p>
+      <div class="grid grid-2" style="margin-bottom:10px">
+        <button class="btn btn-gold" onclick="traerActualizacionesGoogleSheets(true)">📥 Traer los datos más recientes</button>
+        <button class="btn btn-primary" onclick="sincronizarGoogleSheets(true)">📤 Subir los datos de este dispositivo</button>
       </div>
-      <div class="helptext" style="margin-top:14px">
-        ${c.googleSheetsUltimaSync ? `Última sincronización: <strong>${new Date(c.googleSheetsUltimaSync).toLocaleString('es-EC')}</strong><br>${esc(c.googleSheetsUltimoResultado||'')}` : 'Todavía no se ha sincronizado con Google Sheets.'}
+      <div class="helptext">
+        ${c.googleSheetsUltimaSync ? `Última vez que este dispositivo subió datos: <strong>${new Date(c.googleSheetsUltimaSync).toLocaleString('es-EC')}</strong><br>${esc(c.googleSheetsUltimoResultado||'')}` : 'Este dispositivo todavía no ha subido datos a Google Sheets.'}
       </div>
+      <p style="font-size:12px;color:var(--tinta-suave);margin-top:10px">Recomendación práctica: elija <strong>un solo dispositivo "principal"</strong> para ingresar los datos del día a día, y use "Subir" ahí y "Traer" en los demás. Si dos personas editan al mismo tiempo en dos celulares distintos sin sincronizar entre medio, el que suba de último sobrescribirá al otro.</p>
     </div>
 
     <div class="card">
       <h3 style="margin-top:0">¿Qué se guarda en la hoja?</h3>
-      <p style="font-size:13.5px;color:var(--tinta-suave)">Cada sincronización sobrescribe dos pestañas en su hoja de Google: <strong>Saldos_Socios</strong> (nombre, cédula, tipo, aporte de capital, ahorro voluntario, ahorro a plazo fijo, saldo de créditos y mora pendiente de cada socio) y <strong>Resumen_Caja</strong> (capital social, cartera vigente/vencida, fondos social, desgravamen y riesgos). Esta app sigue funcionando sin internet — la sincronización solo ocurre cuando hay conexión.</p>
+      <p style="font-size:13.5px;color:var(--tinta-suave)">La pestaña <strong>AppData</strong> guarda una copia completa de todos los datos de la app (no se edita a mano, es solo para que los dispositivos se sincronicen entre sí). Las pestañas <strong>Saldos_Socios</strong> y <strong>Resumen_Caja</strong> son de solo lectura, pensadas para revisar los saldos directamente en Google Sheets. Esta app sigue funcionando sin internet — la sincronización solo ocurre cuando hay conexión.</p>
     </div>
   `;
 }
-
 
 function renderRespaldo(main){
   main.innerHTML = `
@@ -1812,7 +1883,7 @@ function updateConnStatus(){
   if(txt){ txt.textContent = online ? 'Conectado' : 'Sin conexión — funcionando offline'; }
   if(dotM){ dotM.style.color = online ? '#79C99B' : '#D4A24C'; }
 }
-window.addEventListener('online', ()=>{ updateConnStatus(); sincronizarGoogleSheets(false); });
+window.addEventListener('online', ()=>{ updateConnStatus(); traerActualizacionesGoogleSheets(false); });
 window.addEventListener('offline', updateConnStatus);
 
 /* ================= Instalación como app (Android/Chrome/Edge) ================= */
@@ -1848,7 +1919,7 @@ if('serviceWorker' in navigator){
 document.addEventListener('DOMContentLoaded', ()=>{
   render();
   updateConnStatus();
-  if(navigator.onLine) sincronizarGoogleSheets(false);
+  if(navigator.onLine) traerActualizacionesGoogleSheets(false);
 });
 </script>
 </body>
