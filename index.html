@@ -200,6 +200,14 @@ textarea{resize:vertical;min-height:70px}
 .doc-page .doc-sub{text-align:center;color:#555;font-size:12px;margin-bottom:18px}
 .doc-page table{margin:14px 0}
 .doc-page td,.doc-page th{border:1px solid #999;padding:6px 8px;font-size:12.5px}
+.doc-page.compacto{font-size:10.5px;line-height:1.28}
+.doc-page.compacto h2{font-size:18px;margin-bottom:0}
+.doc-page.compacto .doc-sub{font-size:10px;margin-bottom:8px}
+.doc-page.compacto p{margin:5px 0}
+.doc-page.compacto table{margin:6px 0}
+.doc-page.compacto td,.doc-page.compacto th{padding:2.5px 5px;font-size:9.5px}
+.doc-page.compacto .doc-signs{margin-top:20px}
+@media print{ @page{ margin:9mm; } }
 .doc-line{border-bottom:1px solid #333;display:inline-block;min-width:160px;padding:0 4px}
 .doc-signs{display:flex;justify-content:space-between;margin-top:60px;gap:30px}
 .doc-signs div{flex:1;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:12px}
@@ -1473,25 +1481,31 @@ function genAprobacionCredito(credId){
 function genEntregaCredito(credId){
   const c = DB.creditos.find(x=>x.id===credId); if(!c) return;
   const s = socioById(c.solicitanteId);
-  printDoc(`<div class="doc-page">
+  const aporteDesg = c.aporteDesgravamen||0;
+  const montoNeto = round2(c.monto - aporteDesg);
+  printDoc(`<div class="doc-page compacto">
     ${membreteHTML()}
     <h2>${esc(DB.config.nombreCaja)}</h2>
     <div class="doc-sub">ACTA DE ENTREGA-RECEPCION DE CREDITO N. ${c.numero}</div>
     <p>En la comunidad ${esc(DB.config.comunidad)}, parroquia ${esc(DB.config.parroquia)}, a los ${fechaLarga(c.fechaDesembolso||todayISO())}, comparecen por una parte la ${esc(DB.config.nombreCaja)}, representada por su Tesorero/a, y por otra <strong>${esc(s?s.nombres:'-')}</strong>, portador(a) de la cedula N. ${esc(s&&s.cedula||'____________')}, en calidad de beneficiario/a, quienes libre y voluntariamente convienen en celebrar la presente Acta de Entrega-Recepcion de credito, al tenor de las siguientes clausulas:</p>
     <table style="width:100%">
-      <tr><th style="width:40%">Monto entregado</th><td>${fmt(c.monto)}</td></tr>
+      <tr><th style="width:40%">Monto del credito aprobado</th><td>${fmt(c.monto)}</td></tr>
+      <tr><th>Aporte a Fondo de Desgravamen (Art. 14)</th><td>- ${fmt(aporteDesg)}</td></tr>
+      <tr><th style="background:#eee"><strong>Monto neto entregado al socio</strong></th><td style="background:#eee"><strong>${fmt(montoNeto)}</strong></td></tr>
       <tr><th>Plazo</th><td>${c.plazoMeses} meses</td></tr>
       <tr><th>Tasa de interes</th><td>${c.tasaInteres}% anual</td></tr>
       <tr><th>Sistema de pago (Art. 6)</th><td>Amortizacion francesa, cuotas mensuales</td></tr>
       <tr><th>Primera cuota</th><td>${c.tabla&&c.tabla[0]?fmtDate(c.tabla[0].fechaVenc):'-'}</td></tr>
       <tr><th>Ultima cuota</th><td>${c.tabla&&c.tabla.length?fmtDate(c.tabla[c.tabla.length-1].fechaVenc):'-'}</td></tr>
-      <tr><th>Cuota mensual referencial</th><td>${c.tabla&&c.tabla[0]?fmt(c.tabla[0].cuota):'-'}</td></tr>
-      <tr><th>Aporte a Fondo de Desgravamen (Art. 14)</th><td>${fmt(c.aporteDesgravamen||0)}</td></tr>
       <tr><th>Forma de calculo de mora (Art. 11)</th><td>${c.modoMora==='alFinalPlazo'?'Solo al vencer todo el plazo':'Por cada cuota vencida'} - ${fmt(DB.config.moraDiaria)} por dia</td></tr>
     </table>
-    <p><strong>PRIMERA:</strong> La Caja hace entrega real y efectiva del monto senalado al/la beneficiario/a, quien declara recibirlo a su entera satisfaccion.</p>
-    <p><strong>SEGUNDA:</strong> El/la beneficiario/a se compromete a cancelar puntualmente cada cuota en las fechas de la tabla de amortizacion adjunta, aceptando la mora establecida en caso de atraso, conforme al Art. 11 del Reglamento de Creditos.</p>
+    <p><strong>PRIMERA:</strong> La Caja hace entrega real y efectiva del monto neto senalado al/la beneficiario/a, una vez descontado el aporte obligatorio al Fondo de Desgravamen, y el/la beneficiario/a declara recibirlo a su entera satisfaccion.</p>
+    <p><strong>SEGUNDA:</strong> El/la beneficiario/a se compromete a cancelar puntualmente cada cuota en las fechas de la siguiente tabla de amortizacion, aceptando la mora establecida en caso de atraso, conforme al Art. 11 del Reglamento de Creditos.</p>
     <p><strong>TERCERA:</strong> En caso de fallecimiento del/la deudor/a, el saldo pendiente se cubrira con cargo al Fondo de Desgravamen, conforme al Art. 14.</p>
+    ${c.tabla&&c.tabla.length?`<table style="width:100%">
+      <tr><th>#</th><th>Vence</th><th>Cuota</th><th>Capital</th><th>Interes</th><th>Saldo</th></tr>
+      ${c.tabla.map(t=>`<tr><td>${t.numero}</td><td>${fmtDate(t.fechaVenc)}</td><td>${fmt(t.cuota)}</td><td>${fmt(t.capital)}</td><td>${fmt(t.interes)}</td><td>${fmt(t.saldo)}</td></tr>`).join('')}
+    </table>`:''}
     <p>Para constancia, firman las partes en la fecha senalada.</p>
     <div class="doc-signs"><div>Entregado por Tesoreria</div><div>Recibido conforme<br>${esc(s?s.nombres:'Socio/a')}</div></div>
   </div>`);
