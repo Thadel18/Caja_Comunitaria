@@ -210,6 +210,10 @@ textarea{resize:vertical;min-height:70px}
 </head>
 <body>
 
+<div id="installBanner" class="no-print" style="display:none;background:var(--oro-500);color:var(--verde-900);padding:11px 14px;text-align:center;font-size:13.5px;font-weight:700;cursor:pointer" onclick="triggerInstall()">
+  📲 Esta app se puede instalar en tu celular — toca aquí para instalarla
+</div>
+
 <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 
 <div id="app">
@@ -269,7 +273,11 @@ const CFG_DEFAULT = {
   comunidad: 'Omagua San Francisco',
   parroquia: 'Enokanqui',
   canton: 'La Joya de los Sachas',
-  provincia: 'Orellana'
+  provincia: 'Orellana',
+  googleSheetsUrl: '',
+  googleSheetsAutoSync: false,
+  googleSheetsUltimaSync: '',
+  googleSheetsUltimoResultado: ''
 };
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -304,6 +312,10 @@ function saveDB(){
   localStorage.setItem(DB_KEY, JSON.stringify(DB));
   const t = document.getElementById('lastSaveTxt');
   if(t) t.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit'});
+  if(DB.config.googleSheetsUrl && DB.config.googleSheetsAutoSync){
+    clearTimeout(window._syncTimeout);
+    window._syncTimeout = setTimeout(()=>sincronizarGoogleSheets(false), 3500);
+  }
 }
 
 /* ---------- Navegación ---------- */
@@ -317,6 +329,7 @@ const TABS = [
   {id:'documentos', label:'Documentos', icon:'📄'},
   {id:'config', label:'Configuración', icon:'⚙️'},
   {id:'respaldo', label:'Respaldo de datos', icon:'🔄'},
+  {id:'sheets', label:'Google Sheets', icon:'📊'},
 ];
 
 function renderNav(){
@@ -528,6 +541,7 @@ function render(){
     documentos: renderDocumentos,
     config: renderConfig,
     respaldo: renderRespaldo,
+    sheets: renderGoogleSheets,
   };
   main.innerHTML = '';
   (renderers[currentTab]||renderDashboard)(main);
@@ -758,8 +772,9 @@ function openSocioDetalle(id){
       ${(s.aportes||[]).map(a=>`<tr><td>${fmtDate(a.fecha)}</td><td>${esc(a.tipo)}</td><td>${fmt(a.monto)}</td></tr>`).join('') || '<tr><td colspan="3" style="color:var(--tinta-suave)">Sin aportes registrados</td></tr>'}
     </tbody></table></div>
     <div class="modal-actions" style="justify-content:space-between">
-      <div>
+      <div style="display:flex;gap:8px">
         ${s.estado==='activo'?`<button class="btn btn-danger btn-sm" onclick="separarSocio('${s.id}')">Separar socio</button>`:`<span class="badge neutral">Separado</span>`}
+        <button class="btn btn-danger btn-sm" onclick="eliminarSocio('${s.id}')">🗑️ Eliminar definitivamente</button>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost btn-sm" onclick="closeModal();openSocioForm(socioById('${s.id}'))">Editar</button>
@@ -773,6 +788,25 @@ function separarSocio(id){
   const s = socioById(id); if(!s) return;
   if(!confirm('¿Confirma separar a este socio de la caja (Art. 5)?')) return;
   s.estado='separado'; saveDB(); toast('Socio separado'); closeModal(); renderSociosTabla();
+}
+function eliminarSocio(id){
+  const s = socioById(id); if(!s) return;
+  const cred = DB.creditos.filter(c=>c.solicitanteId===id);
+  const ahorrosSocio = DB.ahorros.filter(a=>a.socioId===id);
+  let msg = `¿Eliminar definitivamente a "${s.nombres}"? Esta acción no se puede deshacer.`;
+  if(cred.length || ahorrosSocio.length){
+    msg += `\n\nTambién se eliminarán sus ${cred.length} crédito(s) y ${ahorrosSocio.length} cuenta(s) de ahorro asociadas.`;
+  }
+  if(!confirm(msg)) return;
+  // revertir aportes al fondo de desgravamen de los créditos que se van a borrar
+  cred.forEach(c=>{ if(c.aporteDesgravamen) DB.fondos.desgravamen = round2(Math.max(0, DB.fondos.desgravamen - c.aporteDesgravamen)); });
+  DB.creditos = DB.creditos.filter(c=>c.solicitanteId!==id);
+  const ahorroIds = ahorrosSocio.map(a=>a.id);
+  DB.ahorros = DB.ahorros.filter(a=>a.socioId!==id);
+  DB.movAhorros = DB.movAhorros.filter(m=>!ahorroIds.includes(m.ahorroId));
+  DB.multas = DB.multas.filter(m=>m.socioId!==id);
+  DB.socios = DB.socios.filter(x=>x.id!==id);
+  saveDB(); toast('Socio eliminado'); closeModal(); renderSocios(document.getElementById('mainContent'));
 }
 
 /* ================= APORTES DE CAPITAL ================= */
@@ -882,7 +916,17 @@ function openAhorroDetalle(id){
       <button class="btn btn-ghost" onclick="movAhorro('${a.id}','retiro')">− Retiro</button>
       <button class="btn btn-gold" onclick="movAhorro('${a.id}','interes')">% Interés generado</button>
     </div>` : '<p class="badge neutral">Cuenta cerrada</p>'}
+    <div class="modal-actions" style="justify-content:flex-start">
+      <button class="btn btn-danger btn-sm" onclick="eliminarAhorro('${a.id}')">🗑️ Eliminar cuenta</button>
+    </div>
   `, null, true);
+}
+function eliminarAhorro(id){
+  const a = DB.ahorros.find(x=>x.id===id); if(!a) return;
+  if(!confirm('¿Eliminar definitivamente esta cuenta de ahorro y su historial de movimientos?')) return;
+  DB.ahorros = DB.ahorros.filter(x=>x.id!==id);
+  DB.movAhorros = DB.movAhorros.filter(m=>m.ahorroId!==id);
+  saveDB(); toast('Cuenta de ahorro eliminada'); closeModal(); renderAhorrosTabla();
 }
 function movAhorro(ahorroId, tipo){
   const labels = {deposito:'Monto a depositar (US$):', retiro:'Monto a retirar (US$):', interes:'Monto de interés a acreditar (US$):'};
@@ -1108,8 +1152,16 @@ function openCreditoDetalle(id){
   } else if(c.estado==='aprobado'){
     acciones += `<button class="btn btn-gold btn-sm" onclick="desembolsarCredito('${c.id}')">Registrar desembolso</button>`;
   }
+  acciones += `<button class="btn btn-danger btn-sm" onclick="eliminarCredito('${c.id}')">🗑️ Eliminar</button>`;
   acciones += '</div></div>';
   showModal(`Credito #${c.numero} - ${s?s.nombres:'-'}`, `Solicitado el ${fmtDate(c.fechaSolicitud)}`, body+acciones, null, true);
+}
+function eliminarCredito(id){
+  const c = DB.creditos.find(x=>x.id===id); if(!c) return;
+  if(!confirm(`¿Eliminar definitivamente el crédito #${c.numero}? Esta acción no se puede deshacer.`)) return;
+  if(c.aporteDesgravamen) DB.fondos.desgravamen = round2(Math.max(0, DB.fondos.desgravamen - c.aporteDesgravamen));
+  DB.creditos = DB.creditos.filter(x=>x.id!==id);
+  saveDB(); toast('Crédito eliminado'); closeModal(); renderCreditosTabla();
 }
 function resolverCredito(id, decision){
   const c = DB.creditos.find(x=>x.id===id); if(!c) return;
@@ -1506,6 +1558,142 @@ function renderConfig(main){
 }
 
 /* ================= RESPALDO / SINCRONIZACIÓN ================= */
+/* ================= GOOGLE SHEETS (sincronización de saldos) ================= */
+const GOOGLE_SCRIPT_CODE = `function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // ---- Hoja "Saldos_Socios" ----
+    var hoja = ss.getSheetByName('Saldos_Socios');
+    if (!hoja) hoja = ss.insertSheet('Saldos_Socios');
+    hoja.clearContents();
+    hoja.appendRow(['Nombre','Cedula','Tipo','Estado','Aporte de Capital','Ahorro Voluntario','Ahorro Plazo Fijo','Saldo de Creditos','Mora Pendiente','Actualizado']);
+    data.socios.forEach(function(s){
+      hoja.appendRow([s.nombre, s.cedula, s.tipo, s.estado, s.aporteCapital, s.ahorroVoluntario, s.ahorroPlazo, s.saldoCreditos, s.moraPendiente, data.fechaSync]);
+    });
+    hoja.getRange(1,1,1,10).setFontWeight('bold');
+    hoja.autoResizeColumns(1,10);
+
+    // ---- Hoja "Resumen_Caja" ----
+    var resumen = ss.getSheetByName('Resumen_Caja');
+    if (!resumen) resumen = ss.insertSheet('Resumen_Caja');
+    resumen.clearContents();
+    resumen.appendRow(['Indicador','Valor']);
+    Object.keys(data.resumen).forEach(function(k){
+      resumen.appendRow([k, data.resumen[k]]);
+    });
+    resumen.appendRow(['Ultima actualizacion', data.fechaSync]);
+    resumen.getRange(1,1,1,2).setFontWeight('bold');
+    resumen.autoResizeColumns(1,2);
+
+    return ContentService.createTextOutput(JSON.stringify({ok:true, socios:data.socios.length}))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ok:false, error:String(err)}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({ok:true, mensaje:'Web App de la Caja Omaguas San Francisco activo.'}))
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+
+function construirPayloadSheets(){
+  const socios = DB.socios.map(s=>({
+    nombre: s.nombres, cedula: s.cedula||'', tipo: s.esComunidad?'Socio comunidad':'Cliente/usuario', estado: s.estado,
+    aporteCapital: totalAportesSocio(s),
+    ahorroVoluntario: round2(DB.ahorros.filter(a=>a.socioId===s.id && a.tipo==='voluntario' && a.estado!=='cerrado').reduce((a,x)=>a+x.saldo,0)),
+    ahorroPlazo: round2(DB.ahorros.filter(a=>a.socioId===s.id && a.tipo==='plazo' && a.estado!=='cerrado').reduce((a,x)=>a+x.saldo,0)),
+    saldoCreditos: round2(DB.creditos.filter(c=>c.solicitanteId===s.id && c.estado==='desembolsado').reduce((a,c)=>a+saldoCredito(c),0)),
+    moraPendiente: round2(DB.creditos.filter(c=>c.solicitanteId===s.id && c.estado==='desembolsado').reduce((a,c)=>a+totalMoraCredito(c),0)),
+  }));
+  const resumen = {
+    'Capital social total': totalCapitalSocial(),
+    'Ahorro total': totalAhorros(),
+    'Cartera vigente': carteraVigente(),
+    'Cartera vencida': carteraVencida(),
+    'Cartera de moras pendientes': carteraMorasAcumuladas(),
+    'Fondo social': DB.fondos.social,
+    'Fondo de desgravamen': DB.fondos.desgravamen,
+    'Fondo de gestion de riesgos': DB.fondos.riesgos,
+  };
+  return { fechaSync: new Date().toLocaleString('es-EC'), socios, resumen };
+}
+async function sincronizarGoogleSheets(manual){
+  const url = (DB.config.googleSheetsUrl||'').trim();
+  if(!url){ if(manual) toast('Primero configure la URL del Web App de Google Apps Script','err'); return; }
+  if(!navigator.onLine){ if(manual) toast('Sin conexión — no se puede sincronizar ahora mismo. Se reintentará cuando vuelva la señal.','err'); return; }
+  const payload = construirPayloadSheets();
+  try{
+    const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
+    let json = {ok:true};
+    try{ json = await resp.json(); }catch(_e){}
+    DB.config.googleSheetsUltimaSync = new Date().toISOString();
+    DB.config.googleSheetsUltimoResultado = json.ok ? `Sincronizado: ${json.socios!=null?json.socios:payload.socios.length} socio(s)` : `Error: ${json.error||'respuesta inesperada'}`;
+    localStorage.setItem(DB_KEY, JSON.stringify(DB));
+    if(manual) toast(json.ok ? 'Sincronizado con Google Sheets correctamente' : 'Google Sheets respondió con un error — revise el código pegado en Apps Script', !json.ok);
+  }catch(err){
+    DB.config.googleSheetsUltimoResultado = 'No se pudo conectar (revise la URL o que la implementación sea pública)';
+    localStorage.setItem(DB_KEY, JSON.stringify(DB));
+    if(manual) toast('No se pudo sincronizar con Google Sheets','err');
+  }
+  if(currentTab==='sheets') renderGoogleSheets(document.getElementById('mainContent'));
+}
+function guardarConfigSheets(){
+  const url = document.getElementById('sheetsUrlInput').value.trim();
+  const auto = document.getElementById('sheetsAutoChk').checked;
+  DB.config.googleSheetsUrl = url;
+  DB.config.googleSheetsAutoSync = auto;
+  saveDB(); toast('Configuración de Google Sheets guardada');
+}
+function copiarCodigoAppsScript(){
+  navigator.clipboard.writeText(GOOGLE_SCRIPT_CODE).then(()=>toast('Código copiado — péguelo en Apps Script')).catch(()=>toast('No se pudo copiar automáticamente; selecciónelo y copie manualmente','err'));
+}
+function renderGoogleSheets(main){
+  const c = DB.config;
+  main.innerHTML = `
+    <div class="topbar"><div><h2>Sincronización con Google Sheets</h2><p class="desc">Guarda una copia de los saldos de los socios (aportes, ahorros, créditos y mora) en una hoja de cálculo de Google, accesible desde cualquier lugar con internet.</p></div></div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin-top:0">Paso 1 — Cree la hoja de cálculo y el Web App</h3>
+      <ol style="font-size:13.5px;line-height:1.7;padding-left:20px">
+        <li>Cree una hoja de cálculo nueva en <a href="https://sheets.google.com" target="_blank" rel="noopener">sheets.google.com</a> (por ejemplo, "Caja Omaguas San Francisco — Saldos").</li>
+        <li>En esa hoja, vaya a <strong>Extensiones → Apps Script</strong>.</li>
+        <li>Borre el código de ejemplo y pegue el código de abajo (botón "Copiar código").</li>
+        <li>Presione <strong>Guardar</strong>, luego <strong>Implementar → Nueva implementación</strong>.</li>
+        <li>En "Seleccionar tipo" elija <strong>Aplicación web</strong>. En "Quién tiene acceso" elija <strong>Cualquier usuario</strong> (Anyone).</li>
+        <li>Presione <strong>Implementar</strong>, autorice los permisos que pida Google, y copie la URL que termina en <code>/exec</code>.</li>
+      </ol>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px">
+        <label style="font-weight:600;font-size:12.5px;color:var(--verde-900)">Código para Apps Script (Code.gs)</label>
+        <button class="btn btn-ghost btn-sm" onclick="copiarCodigoAppsScript()">📋 Copiar código</button>
+      </div>
+      <textarea readonly style="width:100%;height:150px;font-family:monospace;font-size:11.5px;background:var(--crema-2)">${esc(GOOGLE_SCRIPT_CODE)}</textarea>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin-top:0">Paso 2 — Conecte la app con esa URL</h3>
+      <div class="field"><label>URL del Web App (termina en /exec)</label><input id="sheetsUrlInput" placeholder="https://script.google.com/macros/s/XXXXXXXXXXXX/exec" value="${esc(c.googleSheetsUrl||'')}"></div>
+      <div class="field"><label><input type="checkbox" id="sheetsAutoChk" style="width:auto;display:inline-block;margin-right:6px" ${c.googleSheetsAutoSync?'checked':''}> Sincronizar automáticamente cuando haya internet y se guarden cambios</label></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="guardarConfigSheets()">Guardar configuración</button>
+        <button class="btn btn-gold" onclick="sincronizarGoogleSheets(true)">🔄 Sincronizar ahora</button>
+      </div>
+      <div class="helptext" style="margin-top:14px">
+        ${c.googleSheetsUltimaSync ? `Última sincronización: <strong>${new Date(c.googleSheetsUltimaSync).toLocaleString('es-EC')}</strong><br>${esc(c.googleSheetsUltimoResultado||'')}` : 'Todavía no se ha sincronizado con Google Sheets.'}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">¿Qué se guarda en la hoja?</h3>
+      <p style="font-size:13.5px;color:var(--tinta-suave)">Cada sincronización sobrescribe dos pestañas en su hoja de Google: <strong>Saldos_Socios</strong> (nombre, cédula, tipo, aporte de capital, ahorro voluntario, ahorro a plazo fijo, saldo de créditos y mora pendiente de cada socio) y <strong>Resumen_Caja</strong> (capital social, cartera vigente/vencida, fondos social, desgravamen y riesgos). Esta app sigue funcionando sin internet — la sincronización solo ocurre cuando hay conexión.</p>
+    </div>
+  `;
+}
+
+
 function renderRespaldo(main){
   main.innerHTML = `
     <div class="topbar"><div><h2>Respaldo de datos</h2><p class="desc">La app funciona sin internet. Use esta sección para crear una copia de seguridad o pasar los datos a otro dispositivo cuando haya conexión.</p></div></div>
@@ -1523,13 +1711,30 @@ function renderRespaldo(main){
       </div>
     </div>
     <div class="leaf-divider"></div>
-    <div class="card">
+    <div class="card" style="margin-bottom:16px">
       <h3 style="margin-top:0">Estado de almacenamiento</h3>
       <p style="font-size:13.5px">Tamaño actual de los datos: <strong>${(new Blob([JSON.stringify(DB)]).size/1024).toFixed(1)} KB</strong> guardados localmente en este navegador/dispositivo.</p>
       <p style="font-size:12px;color:var(--tinta-suave)">Consejo: exporte un respaldo periódicamente (por ejemplo, después de cada asamblea) para no perder información si el dispositivo se daña o se borra el navegador.</p>
     </div>
+    <div class="card" style="border-color:var(--rojo)">
+      <h3 style="margin-top:0;color:var(--rojo)">⚠️ Empezar de nuevo (borrar datos de prueba)</h3>
+      <p style="font-size:13.5px;color:var(--tinta-suave)">Esto borra <strong>todos</strong> los socios, créditos, ahorros y multas registrados hasta ahora — útil si hizo pruebas y quiere dejar la app limpia para cargar socios reales. <strong>No borra</strong> la configuración de tasas/montos ni la conexión con Google Sheets. Esta acción no se puede deshacer; se recomienda descargar un respaldo antes si tiene alguna duda.</p>
+      <button class="btn btn-danger" onclick="reiniciarDatosOperativos()">Borrar socios, créditos y ahorros — empezar de nuevo</button>
+    </div>
   `;
 }
+function reiniciarDatosOperativos(){
+  const totalRegistros = DB.socios.length + DB.creditos.length + DB.ahorros.length + DB.multas.length;
+  if(totalRegistros===0){ toast('No hay datos operativos para borrar'); return; }
+  const paso1 = confirm(`Esto eliminará ${DB.socios.length} socio(s), ${DB.creditos.length} crédito(s), ${DB.ahorros.length} cuenta(s) de ahorro y ${DB.multas.length} multa(s). La configuración de tasas y Google Sheets NO se borrará.\n\n¿Desea continuar?`);
+  if(!paso1) return;
+  const confirmacion = prompt('Para confirmar, escriba la palabra BORRAR (en mayúsculas):');
+  if(confirmacion !== 'BORRAR'){ toast('No se realizaron cambios — el texto no coincidió','err'); return; }
+  DB.socios = []; DB.creditos = []; DB.ahorros = []; DB.movAhorros = []; DB.multas = [];
+  DB.fondos = { social:0, desgravamen:0, riesgos:0 };
+  saveDB(); toast('Datos borrados — la app está lista para socios reales'); render();
+}
+
 function exportarRespaldo(){
   const blob = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
@@ -1593,8 +1798,34 @@ function updateConnStatus(){
   if(txt){ txt.textContent = online ? 'Conectado' : 'Sin conexión — funcionando offline'; }
   if(dotM){ dotM.style.color = online ? '#79C99B' : '#D4A24C'; }
 }
-window.addEventListener('online', updateConnStatus);
+window.addEventListener('online', ()=>{ updateConnStatus(); sincronizarGoogleSheets(false); });
 window.addEventListener('offline', updateConnStatus);
+
+/* ================= Instalación como app (Android/Chrome/Edge) ================= */
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const banner = document.getElementById('installBanner');
+  if(banner) banner.style.display = 'block';
+});
+function triggerInstall(){
+  const banner = document.getElementById('installBanner');
+  if(!deferredInstallPrompt){
+    toast('Si no aparece el instalador, use el menú (⋮) del navegador → "Instalar app" o "Agregar a pantalla de inicio"');
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.finally(()=>{
+    deferredInstallPrompt = null;
+    if(banner) banner.style.display = 'none';
+  });
+}
+window.addEventListener('appinstalled', ()=>{
+  const banner = document.getElementById('installBanner');
+  if(banner) banner.style.display = 'none';
+  toast('¡App instalada correctamente!');
+});
 
 /* ================= Init ================= */
 if('serviceWorker' in navigator){
@@ -1603,6 +1834,7 @@ if('serviceWorker' in navigator){
 document.addEventListener('DOMContentLoaded', ()=>{
   render();
   updateConnStatus();
+  if(navigator.onLine) sincronizarGoogleSheets(false);
 });
 </script>
 </body>
