@@ -53,7 +53,7 @@ a{color:var(--verde-700)}
   display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;
 }
 .brand{padding:22px 18px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
-.brand .ring-logo{width:38px;height:38px;margin-bottom:8px}
+.brand .ring-logo{width:48px;height:48px;margin-bottom:8px;object-fit:contain}
 .brand h1{font-size:16px;line-height:1.25;margin:0 0 2px;color:#fff}
 .brand .sub{font-size:11px;color:var(--oro-300);letter-spacing:.04em;text-transform:uppercase}
 nav.tabs{flex:1;padding:10px 10px}
@@ -200,7 +200,9 @@ textarea{resize:vertical;min-height:70px}
 .doc-page .doc-sub{text-align:center;color:#555;font-size:12px;margin-bottom:18px}
 .doc-page table{margin:14px 0}
 .doc-page td,.doc-page th{border:1px solid #999;padding:6px 8px;font-size:12.5px}
+.doc-page .logo-doc{width:58px;height:58px;object-fit:contain;display:block;margin:0 auto 4px}
 .doc-page.compacto{font-size:10.5px;line-height:1.28}
+.doc-page.compacto .logo-doc{width:40px;height:40px;margin:0 auto 2px}
 .doc-page.compacto h2{font-size:18px;margin-bottom:0}
 .doc-page.compacto .doc-sub{font-size:10px;margin-bottom:8px}
 .doc-page.compacto p{margin:5px 0}
@@ -231,11 +233,14 @@ textarea{resize:vertical;min-height:70px}
 <div id="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <svg class="ring-logo" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#D4A24C" stroke-width="2.4"/><circle cx="20" cy="20" r="11" fill="none" stroke="#5BA37A" stroke-width="2.4"/><circle cx="20" cy="20" r="4" fill="#D4A24C"/></svg>
+      <img class="ring-logo" src="logo.png" alt="Logo Caja Omaguas San Francisco">
       <h1>Caja Omaguas<br>San Francisco</h1>
       <div class="sub">Ahorro &amp; Crédito Comunitario</div>
     </div>
     <nav class="tabs" id="navTabs"></nav>
+    <div style="padding:0 10px 6px">
+      <button id="syncNowBtn" class="btn btn-gold" style="width:100%;justify-content:center" onclick="sincronizarInteligente()">🔄 Sincronizar</button>
+    </div>
     <div class="status-box" id="statusBox">
       <span class="dot on" id="connDot"></span><span id="connTxt">Conectado</span><br>
       <span id="lastSaveTxt" style="opacity:.8">Datos guardados en este dispositivo</span>
@@ -245,8 +250,11 @@ textarea{resize:vertical;min-height:70px}
   <div style="flex:1;min-width:0;display:flex;flex-direction:column">
     <div class="mobile-top">
       <button class="hamburger" onclick="openSidebar()">☰</button>
-      <div class="brand2">🌿 Caja OSF</div>
-      <span id="connDotMobile" style="font-size:11px">●</span>
+      <div class="brand2"><img src="logo.png" alt="Logo" style="width:24px;height:24px;object-fit:contain"> Caja OSF</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button id="syncNowBtnMobile" class="btn btn-gold btn-sm" style="padding:6px 10px" onclick="sincronizarInteligente()" title="Sincronizar">🔄</button>
+        <span id="connDotMobile" style="font-size:11px">●</span>
+      </div>
     </div>
     <main id="mainContent"></main>
   </div>
@@ -1406,6 +1414,7 @@ function showDocPreview(html){
 function closeDocModal(){ const bg = document.getElementById('docModalBg'); if(bg) bg.classList.remove('show'); }
 function membreteHTML(){
   return `<div style="text-align:center;margin-bottom:6px">
+    <img src="logo.png" class="logo-doc" alt="Logo">
     <div style="font-size:11px;letter-spacing:.08em;color:#555">COMUNIDAD ${esc(DB.config.comunidad.toUpperCase())} - PARROQUIA ${esc(DB.config.parroquia.toUpperCase())} - ${esc(DB.config.canton.toUpperCase())} - ${esc(DB.config.provincia.toUpperCase())}</div>
   </div>`;
 }
@@ -1698,6 +1707,14 @@ async function sincronizarGoogleSheets(manual){
 }
 // Trae (descarga) los datos guardados en Google Sheets y los compara con los de este dispositivo.
 // Si lo de Sheets es mas reciente, pregunta antes de reemplazar los datos locales.
+function aplicarDBRemota(nuevaDB){
+  nuevaDB.config = Object.assign({}, DB.config, nuevaDB.config||{});
+  nuevaDB.socios = nuevaDB.socios||[]; nuevaDB.creditos = nuevaDB.creditos||[]; nuevaDB.ahorros = nuevaDB.ahorros||[];
+  nuevaDB.movAhorros = nuevaDB.movAhorros||[]; nuevaDB.multas = nuevaDB.multas||[];
+  nuevaDB.fondos = Object.assign({social:0,desgravamen:0,riesgos:0}, nuevaDB.fondos||{});
+  DB = nuevaDB;
+  saveDB(true);
+}
 async function traerActualizacionesGoogleSheets(manual){
   const url = (DB.config.googleSheetsUrl||'').trim();
   if(!url){ if(manual) toast('Primero configure la URL del Web App de Google Apps Script','err'); return; }
@@ -1716,17 +1733,39 @@ async function traerActualizacionesGoogleSheets(manual){
     const cuando = new Date(json.ultimaModificacion).toLocaleString('es-EC');
     const confirmar = confirm(`Hay datos más recientes en Google Sheets, actualizados el ${cuando}.\n\n¿Desea traerlos a este dispositivo? Esto reemplazará los datos que tiene guardados aquí ahora mismo.`);
     if(!confirmar) return;
-    const nuevaDB = json.dbCompleta;
-    nuevaDB.config = Object.assign({}, DB.config, nuevaDB.config||{});
-    nuevaDB.socios = nuevaDB.socios||[]; nuevaDB.creditos = nuevaDB.creditos||[]; nuevaDB.ahorros = nuevaDB.ahorros||[];
-    nuevaDB.movAhorros = nuevaDB.movAhorros||[]; nuevaDB.multas = nuevaDB.multas||[];
-    nuevaDB.fondos = Object.assign({social:0,desgravamen:0,riesgos:0}, nuevaDB.fondos||{});
-    DB = nuevaDB;
-    saveDB(true);
+    aplicarDBRemota(json.dbCompleta);
     toast('Datos actualizados desde Google Sheets');
     render();
   }catch(err){
     if(manual) toast('No se pudo conectar con Google Sheets para buscar actualizaciones','err');
+  }
+}
+/* ---- Botón único "Sincronizar": decide solo si hay que traer o subir ---- */
+async function sincronizarInteligente(){
+  const url = (DB.config.googleSheetsUrl||'').trim();
+  if(!url){ toast('Primero configure la conexión en la pestaña "Google Sheets"','err'); goTab('sheets'); return; }
+  if(!navigator.onLine){ toast('Sin conexión — no se puede sincronizar ahora mismo','err'); return; }
+  const btn = document.getElementById('syncNowBtn'); const btnM = document.getElementById('syncNowBtnMobile');
+  [btn,btnM].forEach(b=>{ if(b){ b.disabled=true; b.dataset.txt=b.innerHTML; b.innerHTML='⏳ Sincronizando...'; } });
+  try{
+    const resp = await fetch(url, { method:'GET' });
+    const json = await resp.json();
+    if(!json.ok){ toast('Google Sheets respondió con un error','err'); return; }
+    const remotoFecha = json.ultimaModificacion ? new Date(json.ultimaModificacion).getTime() : 0;
+    const localFecha = new Date(DB.ultimaModificacion||0).getTime();
+    if(json.dbCompleta && remotoFecha > localFecha){
+      const cuando = new Date(json.ultimaModificacion).toLocaleString('es-EC');
+      if(!confirm(`Hay datos más recientes (actualizados el ${cuando}).\n\n¿Traerlos a este dispositivo? Esto reemplazará lo que tiene guardado aquí ahora mismo.`)) return;
+      aplicarDBRemota(json.dbCompleta);
+      toast('✅ Datos actualizados desde la nube'); render();
+    } else {
+      await sincronizarGoogleSheets(false);
+      toast('✅ Sus datos quedaron subidos y actualizados en la nube');
+    }
+  }catch(err){
+    toast('No se pudo sincronizar — revise su conexión o la URL configurada','err');
+  }finally{
+    [btn,btnM].forEach(b=>{ if(b){ b.disabled=false; b.innerHTML=b.dataset.txt; } });
   }
 }
 function guardarConfigSheets(){

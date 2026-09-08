@@ -3,13 +3,14 @@
 // Cuando hay conexión, revisa en segundo plano si hay una versión nueva
 // del archivo y la guarda para la próxima vez que se abra la app.
 
-const CACHE_NAME = 'caja-osf-v2';
+const CACHE_NAME = 'caja-osf-v3';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './logo.png'
 ];
 
 self.addEventListener('install', (event) => {
