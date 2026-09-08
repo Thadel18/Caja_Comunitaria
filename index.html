@@ -222,6 +222,10 @@ textarea{resize:vertical;min-height:70px}
   📲 Esta app se puede instalar en tu celular — toca aquí para instalarla
 </div>
 
+<div id="backupBanner" class="no-print" style="display:none;background:var(--rio-600);color:#fff;padding:11px 14px;text-align:center;font-size:13.5px;font-weight:700;cursor:pointer" onclick="goTab('respaldo')">
+  💾 Ya pasó una semana sin descargar un respaldo — toca aquí para guardar una copia ahora
+</div>
+
 <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 
 <div id="app">
@@ -282,10 +286,14 @@ const CFG_DEFAULT = {
   parroquia: 'Enokanqui',
   canton: 'La Joya de los Sachas',
   provincia: 'Orellana',
+  nombreGerente: 'Klever Tanguila',
+  nombreTesorero: 'Carlos Alvarado',
+  nombreSecretario: 'Geovany Calapucha',
   googleSheetsUrl: '',
   googleSheetsAutoSync: false,
   googleSheetsUltimaSync: '',
-  googleSheetsUltimoResultado: ''
+  googleSheetsUltimoResultado: '',
+  ultimoRespaldoLocal: ''
 };
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -1419,7 +1427,7 @@ function genFichaIngreso(socioId){
       <tr><th>Aporte de capital entregado</th><td>${fmt(totalAportesSocio(s))}</td></tr>
     </table>
     <p>El/la solicitante declara conocer y aceptar el Reglamento de la ${esc(DB.config.nombreCaja)}, comprometiendose a cumplir con los deberes de las personas socias (Art. 6) y a completar los aportes de capital establecidos.</p>
-    <div class="doc-signs"><div>Firma del solicitante<br>C.I. ${esc(s.cedula||'____________')}</div><div>Firma del/la Gerente</div><div>Resolucion de Asamblea</div></div>
+    <div class="doc-signs"><div>Firma del solicitante<br>C.I. ${esc(s.cedula||'____________')}</div><div>${esc(DB.config.nombreGerente||'')}<br>Gerente</div><div>Resolucion de Asamblea</div></div>
   </div>`);
 }
 function genCertificadoAporte(socioId){
@@ -1435,7 +1443,7 @@ function genCertificadoAporte(socioId){
     ${(s.aportes||[]).map(a=>`<tr><td>${fmtDate(a.fecha)}</td><td>${esc(a.tipo)}</td><td>${fmt(a.monto)}</td></tr>`).join('') || '<tr><td colspan="3">Sin aportes registrados</td></tr>'}
     </tbody></table>
     <p style="margin-top:14px;font-size:12px;color:#555">Este certificado es el unico documento probatorio de los aportes realizados, segun el Art. 4 del Reglamento de Aportes de Capital. No es transferible sin autorizacion de la Asamblea.</p>
-    <div class="doc-signs"><div>Firma del/la Tesorero/a</div><div>Firma del/la Gerente</div></div>
+    <div class="doc-signs"><div>${esc(DB.config.nombreTesorero||'')}<br>Tesorero/a</div><div>${esc(DB.config.nombreGerente||'')}<br>Gerente</div></div>
   </div>`);
 }
 function genSolicitudCredito(credId){
@@ -1445,7 +1453,7 @@ function genSolicitudCredito(credId){
     ${membreteHTML()}
     <h2>${esc(DB.config.nombreCaja)}</h2>
     <div class="doc-sub">SOLICITUD DE CREDITO N. ${c.numero} - Art. 13 del Reglamento de Creditos</div>
-    <p>Senor/a Gerente de la ${esc(DB.config.nombreCaja)}. En la comunidad ${esc(DB.config.comunidad)}, a los ${fechaLarga(c.fechaSolicitud)}, yo, <strong>${esc(s?s.nombres:'-')}</strong>, portador(a) de la cedula N. ${esc(s&&s.cedula||'____________')}, comparezco ante usted para solicitar un credito con las siguientes caracteristicas:</p>
+    <p>Senor/a ${esc(DB.config.nombreGerente||'')}, Gerente de la ${esc(DB.config.nombreCaja)}. En la comunidad ${esc(DB.config.comunidad)}, a los ${fechaLarga(c.fechaSolicitud)}, yo, <strong>${esc(s?s.nombres:'-')}</strong>, portador(a) de la cedula N. ${esc(s&&s.cedula||'____________')}, comparezco ante usted para solicitar un credito con las siguientes caracteristicas:</p>
     <table style="width:100%">
       <tr><th style="width:40%">Monto solicitado</th><td>${fmt(c.monto)}</td></tr>
       <tr><th>Plazo</th><td>${c.plazoMeses} meses</td></tr>
@@ -1455,7 +1463,7 @@ function genSolicitudCredito(credId){
       <tr><th>Conyuge (Art. 12b)</th><td>${esc(c.conyuge||'________________________')}</td></tr>
     </table>
     <p>Declaro estar al dia en mis aportes de capital, multas, garantias y demas obligaciones con la Caja, conforme lo exige el Art. 12 del Reglamento de Creditos, y me comprometo a sujetarme a lo que resuelva el Comite de Credito.</p>
-    <div class="doc-signs"><div>Firma del solicitante</div><div>Firma del garante (si aplica)</div><div>Recibido por Tesoreria<br>Fecha: ______________</div></div>
+    <div class="doc-signs"><div>Firma del solicitante</div><div>Firma del garante (si aplica)</div><div>Recibido por: ${esc(DB.config.nombreTesorero||'')}<br>Tesoreria - Fecha: ______________</div></div>
   </div>`);
 }
 function genAprobacionCredito(credId){
@@ -1466,7 +1474,7 @@ function genAprobacionCredito(credId){
     ${membreteHTML()}
     <h2>${esc(DB.config.nombreCaja)}</h2>
     <div class="doc-sub">ACTA DE RESOLUCION DEL COMITE DE CREDITO - Solicitud N. ${c.numero}</div>
-    <p>En la comunidad ${esc(DB.config.comunidad)}, a los ${fechaLarga(c.fechaAprobacion||todayISO())}, se reunio el Comite de Credito de la ${esc(DB.config.nombreCaja)}, integrado por el/la Gerente, Tesorero/a y Secretario/a conforme al Art. 21 del Reglamento, con el objeto de analizar y calificar la solicitud de credito N. ${c.numero} presentada por <strong>${esc(s?s.nombres:'-')}</strong> con fecha ${fmtDate(c.fechaSolicitud)}.</p>
+    <p>En la comunidad ${esc(DB.config.comunidad)}, a los ${fechaLarga(c.fechaAprobacion||todayISO())}, se reunio el Comite de Credito de la ${esc(DB.config.nombreCaja)}, integrado por ${esc(DB.config.nombreGerente||'el/la Gerente')} (Gerente), ${esc(DB.config.nombreTesorero||'el/la Tesorero/a')} (Tesorero/a) y ${esc(DB.config.nombreSecretario||'el/la Secretario/a')} (Secretario/a), conforme al Art. 21 del Reglamento, con el objeto de analizar y calificar la solicitud de credito N. ${c.numero} presentada por <strong>${esc(s?s.nombres:'-')}</strong> con fecha ${fmtDate(c.fechaSolicitud)}.</p>
     <p>Luego de revisar el cumplimiento de los requisitos del Art. 12 del Reglamento de Creditos, el Comite de Credito resuelve:</p>
     <p style="text-align:center;font-size:18px;font-family:var(--font-disp);margin:16px 0;color:${aprobado?'#1E4A34':'#B5473A'}">${aprobado?'APROBAR EL CREDITO SOLICITADO':'NEGAR EL CREDITO SOLICITADO'}</p>
     <table style="width:100%">
@@ -1477,7 +1485,7 @@ function genAprobacionCredito(credId){
       <tr><th>Fecha de resolucion</th><td>${fmtDate(c.fechaAprobacion||todayISO())}</td></tr>
     </table>
     ${aprobado?`<p>Conforme al Art. 13 del Reglamento, el desembolso se realizara dentro de las 72 horas posteriores a esta resolucion, los dias sabado en el horario de 16h00 a 18h30, respetando el orden de ingreso de las solicitudes.</p>`:`<p>Se notificara al/la solicitante los motivos de la negativa, quedando a salvo su derecho a presentar una nueva solicitud una vez subsanadas las observaciones.</p>`}
-    <div class="doc-signs"><div>Gerente</div><div>Tesorero/a</div><div>Secretario/a</div></div>
+    <div class="doc-signs"><div>${esc(DB.config.nombreGerente||'')}<br>Gerente</div><div>${esc(DB.config.nombreTesorero||'')}<br>Tesorero/a</div><div>${esc(DB.config.nombreSecretario||'')}<br>Secretario/a</div></div>
   </div>`);
 }
 function genEntregaCredito(credId){
@@ -1489,7 +1497,7 @@ function genEntregaCredito(credId){
     ${membreteHTML()}
     <h2>${esc(DB.config.nombreCaja)}</h2>
     <div class="doc-sub">ACTA DE ENTREGA-RECEPCION DE CREDITO N. ${c.numero}</div>
-    <p>En la comunidad ${esc(DB.config.comunidad)}, parroquia ${esc(DB.config.parroquia)}, a los ${fechaLarga(c.fechaDesembolso||todayISO())}, comparecen por una parte la ${esc(DB.config.nombreCaja)}, representada por su Tesorero/a, y por otra <strong>${esc(s?s.nombres:'-')}</strong>, portador(a) de la cedula N. ${esc(s&&s.cedula||'____________')}, en calidad de beneficiario/a, quienes libre y voluntariamente convienen en celebrar la presente Acta de Entrega-Recepcion de credito, al tenor de las siguientes clausulas:</p>
+    <p>En la comunidad ${esc(DB.config.comunidad)}, parroquia ${esc(DB.config.parroquia)}, a los ${fechaLarga(c.fechaDesembolso||todayISO())}, comparecen por una parte la ${esc(DB.config.nombreCaja)}, representada por su Tesorero/a, ${esc(DB.config.nombreTesorero||'')}, y por otra <strong>${esc(s?s.nombres:'-')}</strong>, portador(a) de la cedula N. ${esc(s&&s.cedula||'____________')}, en calidad de beneficiario/a, quienes libre y voluntariamente convienen en celebrar la presente Acta de Entrega-Recepcion de credito, al tenor de las siguientes clausulas:</p>
     <table style="width:100%">
       <tr><th style="width:40%">Monto del credito aprobado</th><td>${fmt(c.monto)}</td></tr>
       <tr><th>Aporte a Fondo de Desgravamen (Art. 14)</th><td>- ${fmt(aporteDesg)}</td></tr>
@@ -1509,7 +1517,7 @@ function genEntregaCredito(credId){
       ${c.tabla.map(t=>`<tr><td>${t.numero}</td><td>${fmtDate(t.fechaVenc)}</td><td>${fmt(t.cuota)}</td><td>${fmt(t.capital)}</td><td>${fmt(t.interes)}</td><td>${fmt(t.saldo)}</td></tr>`).join('')}
     </table>`:''}
     <p>Para constancia, firman las partes en la fecha senalada.</p>
-    <div class="doc-signs"><div>Entregado por Tesoreria</div><div>Recibido conforme<br>${esc(s?s.nombres:'Socio/a')}</div></div>
+    <div class="doc-signs"><div>${esc(DB.config.nombreTesorero||'')}<br>Entregado por Tesoreria</div><div>Recibido conforme<br>${esc(s?s.nombres:'Socio/a')}</div></div>
   </div>`);
 }
 
@@ -1526,6 +1534,13 @@ function renderConfig(main){
         <div class="field"><label>Parroquia</label><input name="parroquia" value="${esc(c.parroquia)}"></div>
         <div class="field"><label>Cantón</label><input name="canton" value="${esc(c.canton)}"></div>
         <div class="field"><label>Provincia</label><input name="provincia" value="${esc(c.provincia)}"></div>
+      </div>
+      <div class="leaf-divider"></div>
+      <h3>Directiva (aparece en la firma de los documentos)</h3>
+      <div class="grid grid-3">
+        <div class="field"><label>Gerente</label><input name="nombreGerente" value="${esc(c.nombreGerente||'')}"></div>
+        <div class="field"><label>Tesorero/a</label><input name="nombreTesorero" value="${esc(c.nombreTesorero||'')}"></div>
+        <div class="field"><label>Secretario/a</label><input name="nombreSecretario" value="${esc(c.nombreSecretario||'')}"></div>
       </div>
       <div class="leaf-divider"></div>
       <h3>Aportes de capital</h3>
@@ -1567,7 +1582,7 @@ function renderConfig(main){
     const d = Object.fromEntries(new FormData(e.target).entries());
     Object.keys(d).forEach(k=>{
       const num = Number(d[k]);
-      DB.config[k] = isNaN(num) || d[k]==='' ? d[k] : (['nombreCaja','comunidad','parroquia','canton','provincia'].includes(k) ? d[k] : num);
+      DB.config[k] = isNaN(num) || d[k]==='' ? d[k] : (['nombreCaja','comunidad','parroquia','canton','provincia','nombreGerente','nombreTesorero','nombreSecretario'].includes(k) ? d[k] : num);
     });
     saveDB(); toast('Configuración actualizada');
   });
@@ -1787,6 +1802,7 @@ function renderRespaldo(main){
         <h3 style="margin-top:0">⬇️ Exportar respaldo</h3>
         <p style="font-size:13.5px;color:var(--tinta-suave)">Descarga un archivo con todos los datos de la caja (socios, créditos, ahorros, configuración). Guárdelo en un USB, correo o Drive.</p>
         <button class="btn btn-primary" onclick="exportarRespaldo()">Descargar respaldo (.json)</button>
+        <p class="hint" style="margin-top:10px">${DB.config.ultimoRespaldoLocal ? `Último respaldo descargado: <strong>${new Date(DB.config.ultimoRespaldoLocal).toLocaleString('es-EC')}</strong>` : 'Todavía no ha descargado ningún respaldo en este dispositivo.'}</p>
       </div>
       <div class="card">
         <h3 style="margin-top:0">⬆️ Restaurar respaldo</h3>
@@ -1799,7 +1815,7 @@ function renderRespaldo(main){
     <div class="card" style="margin-bottom:16px">
       <h3 style="margin-top:0">Estado de almacenamiento</h3>
       <p style="font-size:13.5px">Tamaño actual de los datos: <strong>${(new Blob([JSON.stringify(DB)]).size/1024).toFixed(1)} KB</strong> guardados localmente en este navegador/dispositivo.</p>
-      <p style="font-size:12px;color:var(--tinta-suave)">Consejo: exporte un respaldo periódicamente (por ejemplo, después de cada asamblea) para no perder información si el dispositivo se daña o se borra el navegador.</p>
+      <p style="font-size:12px;color:var(--tinta-suave)">Esta app guarda su información de dos formas para mayor seguridad: (1) el respaldo .json que descarga aquí manualmente, y (2) automáticamente en Google Sheets cada vez que sincroniza (pestaña "Google Sheets") — eso ya es una copia guardada fuera de este dispositivo. Aun así, se recomienda descargar el .json de vez en cuando (la app le avisará con un aviso azul si pasa más de una semana sin hacerlo).</p>
     </div>
     <div class="card" style="border-color:var(--rojo)">
       <h3 style="margin-top:0;color:var(--rojo)">⚠️ Empezar de nuevo (borrar datos de prueba)</h3>
@@ -1820,14 +1836,18 @@ function reiniciarDatosOperativos(){
   saveDB(); toast('Datos borrados — la app está lista para socios reales'); render();
 }
 
-function exportarRespaldo(){
+function exportarRespaldo(silencioso){
   const blob = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = `respaldo-caja-osf-${todayISO()}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
-  toast('Respaldo descargado');
+  DB.config.ultimoRespaldoLocal = new Date().toISOString();
+  saveDB(true);
+  const banner = document.getElementById('backupBanner'); if(banner) banner.style.display='none';
+  if(!silencioso) toast('Respaldo descargado');
+  if(currentTab==='respaldo') renderRespaldo(document.getElementById('mainContent'));
 }
 function restaurarRespaldo(){
   const inp = document.getElementById('restoreFile');
@@ -1845,6 +1865,20 @@ function restaurarRespaldo(){
     }catch(err){ toast('Archivo inválido','err'); }
   };
   reader.readAsText(inp.files[0]);
+}
+/* ---- Recordatorio de respaldo: avisa si ya pasó una semana sin exportar una copia local ---- */
+function diasDesdeUltimoRespaldo(){
+  if(!DB.config.ultimoRespaldoLocal) return Infinity;
+  return Math.floor((Date.now() - new Date(DB.config.ultimoRespaldoLocal).getTime())/86400000);
+}
+function verificarRecordatorioRespaldo(){
+  const banner = document.getElementById('backupBanner'); if(!banner) return;
+  const hayDatos = DB.socios.length || DB.creditos.length || DB.ahorros.length;
+  if(hayDatos && diasDesdeUltimoRespaldo() >= 7){
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
+  }
 }
 
 /* ================= MODAL genérico ================= */
@@ -1919,6 +1953,7 @@ if('serviceWorker' in navigator){
 document.addEventListener('DOMContentLoaded', ()=>{
   render();
   updateConnStatus();
+  verificarRecordatorioRespaldo();
   if(navigator.onLine) traerActualizacionesGoogleSheets(false);
 });
 </script>
