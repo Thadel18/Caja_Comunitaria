@@ -220,6 +220,15 @@ textarea{resize:vertical;min-height:70px}
 </head>
 <body>
 
+<div id="authOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:var(--crema);z-index:500;align-items:center;justify-content:center;padding:20px;overflow-y:auto">
+  <div class="card" style="max-width:380px;width:100%;text-align:center">
+    <img src="logo.png" alt="Logo" style="width:70px;height:70px;object-fit:contain;margin:0 auto 12px;display:block">
+    <h2 style="margin:0 0 4px" id="authTitle">Acceso a la aplicación</h2>
+    <p class="modal-desc" id="authDesc" style="margin-bottom:16px">Ingrese su usuario y contraseña.</p>
+    <div id="authFormWrap"></div>
+  </div>
+</div>
+
 <div id="installBanner" class="no-print" style="display:none;background:var(--oro-500);color:var(--verde-900);padding:11px 14px;text-align:center;font-size:13.5px;font-weight:700;cursor:pointer" onclick="triggerInstall()">
   📲 Esta app se puede instalar en tu celular — toca aquí para instalarla
 </div>
@@ -327,11 +336,12 @@ function loadDB(){
       parsed.movAhorros = parsed.movAhorros||[];
       parsed.multas = parsed.multas||[];
       parsed.fondos = Object.assign({ social:0, desgravamen:0, riesgos:0 }, parsed.fondos||{});
+      parsed.fondosMovimientos = parsed.fondosMovimientos||[];
       parsed.ultimaModificacion = parsed.ultimaModificacion || new Date().toISOString();
       return parsed;
     }
   }catch(e){ console.error('Error cargando datos', e); }
-  return { socios:[], creditos:[], ahorros:[], movAhorros:[], multas:[], fondos:{social:0,desgravamen:0,riesgos:0}, config: Object.assign({},CFG_DEFAULT), ultimaModificacion: new Date().toISOString() };
+  return { socios:[], creditos:[], ahorros:[], movAhorros:[], multas:[], fondos:{social:0,desgravamen:0,riesgos:0}, fondosMovimientos:[], config: Object.assign({},CFG_DEFAULT), ultimaModificacion: new Date().toISOString() };
 }
 function saveDB(sinMarcarModificacion){
   if(!sinMarcarModificacion) DB.ultimaModificacion = new Date().toISOString();
@@ -352,6 +362,7 @@ const TABS = [
   {id:'ahorros', label:'Ahorros', icon:'💧'},
   {id:'creditos', label:'Créditos', icon:'🌱'},
   {id:'multas', label:'Multas y Asambleas', icon:'⚖️'},
+  {id:'fondos', label:'Fondos', icon:'💰'},
   {id:'documentos', label:'Documentos', icon:'📄'},
   {id:'config', label:'Configuración', icon:'⚙️'},
   {id:'respaldo', label:'Respaldo de datos', icon:'🔄'},
@@ -473,8 +484,8 @@ function registrarCobroMoraManual(credId){
   c.historialMora = c.historialMora||[];
   c.historialMora.push({id:uid('hm'), fecha:todayISO(), tipo:'cobro', monto:val, motivo:'Cobro de mora registrado manualmente'});
   // Distribución según Art. 15: 50% fondo de crédito (no se lleva registro aparte), 25% riesgos, 25% fondo social
-  DB.fondos.social = round2(DB.fondos.social + val*0.25);
-  DB.fondos.riesgos = round2(DB.fondos.riesgos + val*0.25);
+  registrarMovimientoFondo('social', 'ingreso', val*0.25, `Distribución de mora cobrada — crédito #${c.numero}`);
+  registrarMovimientoFondo('riesgos', 'ingreso', val*0.25, `Distribución de mora cobrada — crédito #${c.numero}`);
   saveDB(); toast('Cobro de mora registrado'); openCreditoDetalle(credId);
 }
 function condonarMora(credId){
@@ -536,12 +547,15 @@ function carteraMorasAcumuladas(){
   return round2(DB.creditos.filter(c=>c.estado==='desembolsado').reduce((a,c)=>a+totalMoraCredito(c),0));
 }
 function carteraMora(){ return carteraVencida(); } // alias retrocompatible
-// Cartera de interés = interés total programado en todos los créditos entregados (vigentes + cancelados).
+// Cartera de interés = interés total programado en todos los créditos entregados (vigentes + cancelados + novados).
 function carteraInteres(){
-  return round2(DB.creditos.filter(c=>c.estado==='desembolsado'||c.estado==='cancelado').reduce((a,c)=>a+(c.tabla||[]).reduce((x,t)=>x+t.interes,0),0));
+  return round2(DB.creditos.filter(c=>c.estado==='desembolsado'||c.estado==='cancelado'||c.estado==='novado').reduce((a,c)=>a+(c.tabla||[]).reduce((x,t)=>x+t.interes,0),0));
 }
 function interesCobradoCreditos(){
   return round2(DB.creditos.reduce((a,c)=>a+(c.pagosRegistrados||[]).reduce((x,p)=>x+(p.interes||0),0),0));
+}
+function interesPorCobrarCreditos(){
+  return round2(Math.max(0, carteraInteres() - interesCobradoCreditos()));
 }
 function totalAhorros(){
   return DB.ahorros.filter(a=>a.estado!=='cerrado').reduce((a,x)=>a+x.saldo,0);
@@ -551,6 +565,52 @@ function totalAhorroPorTipo(tipo){
 }
 function totalMovAhorro(tipo){
   return round2(DB.movAhorros.filter(m=>m.tipo===tipo).reduce((a,m)=>a+Number(m.monto),0));
+}
+
+/* ---------- Fondos: ingresos, egresos y saldo (Art. 14 y 15) ---------- */
+function registrarMovimientoFondo(fondo, tipo, monto, concepto){
+  monto = round2(Math.abs(Number(monto)||0));
+  if(monto<=0) return;
+  DB.fondos[fondo] = round2((DB.fondos[fondo]||0) + (tipo==='egreso'? -monto : monto));
+  DB.fondosMovimientos = DB.fondosMovimientos||[];
+  DB.fondosMovimientos.push({id:uid('fm'), fondo, tipo, monto, concepto:concepto||'', fecha:todayISO()});
+}
+function registrarEgresoFondo(fondo){
+  const nombres = {social:'Fondo Social', desgravamen:'Fondo de Desgravamen', riesgos:'Fondo de Gestión de Riesgos'};
+  const saldo = DB.fondos[fondo]||0;
+  const montoStr = prompt(`Saldo actual de ${nombres[fondo]}: ${fmt(saldo)}\n\n¿Cuánto se retira?`, '');
+  if(montoStr===null) return;
+  const monto = Number(montoStr);
+  if(!monto || monto<=0){ toast('Monto inválido','err'); return; }
+  if(monto > saldo + 0.01){ toast('El monto supera el saldo disponible del fondo','err'); return; }
+  const concepto = prompt('Concepto del egreso (ej: apoyo a socio por calamidad doméstica, gasto de cobranza):','') || 'Egreso registrado manualmente';
+  registrarMovimientoFondo(fondo, 'egreso', monto, concepto);
+  saveDB(); toast('Egreso registrado'); if(currentTab==='fondos') renderFondos(document.getElementById('mainContent'));
+}
+
+/* ---------- Novación de créditos (Art. 10b) ---------- */
+function capitalPagadoCredito(cred){
+  return round2((cred.tabla||[]).reduce((a,t)=>{
+    const abonado = Math.min(t.abonado||(t.pagado?t.cuota:0), t.cuota);
+    const propCapital = t.cuota>0 ? (t.capital/t.cuota) : 0;
+    return a + abonado*propCapital;
+  },0));
+}
+function porcentajePagadoCredito(cred){
+  return cred.monto>0 ? round2(capitalPagadoCredito(cred)/cred.monto*100) : 0;
+}
+
+/* ---------- Reporte: socios con mayor interés generado en créditos ---------- */
+function rankingInteresPorSocio(){
+  const map = {};
+  DB.creditos.forEach(c=>{
+    if(!['desembolsado','cancelado','novado'].includes(c.estado)) return;
+    const interesTotal = (c.tabla||[]).reduce((a,t)=>a+t.interes,0);
+    map[c.solicitanteId] = round2((map[c.solicitanteId]||0) + interesTotal);
+  });
+  return Object.entries(map).map(([socioId, interes])=>({socio:socioById(socioId), interes}))
+    .filter(x=>x.socio)
+    .sort((a,b)=>b.interes-a.interes);
 }
 
 /* ---------- Render principal ---------- */
@@ -564,6 +624,7 @@ function render(){
     ahorros: renderAhorros,
     creditos: renderCreditos,
     multas: renderMultas,
+    fondos: renderFondos,
     documentos: renderDocumentos,
     config: renderConfig,
     respaldo: renderRespaldo,
@@ -584,6 +645,8 @@ function renderDashboard(main){
   const vencida = carteraVencida();
   const morasAcum = carteraMorasAcumuladas();
   const interesCartera = carteraInteres();
+  const interesCobrado = interesCobradoCreditos();
+  const interesPorCobrar = interesPorCobrarCreditos();
   const pendAprobar = DB.creditos.filter(c=>c.estado==='solicitado');
   const activosDesembolsados = DB.creditos.filter(c=>c.estado==='desembolsado');
   const nVerde = activosDesembolsados.filter(c=>creditoSemaforo(c)==='verde').length;
@@ -612,7 +675,14 @@ function renderDashboard(main){
       <div class="stat-card"><div class="lbl">${semaforoDot('verde')}Cartera vigente (al día)</div><div class="val">${fmt(vigente)}</div><div class="sub">${nVerde+nAmarillo} crédito(s) al día</div></div>
       <div class="stat-card ${vencida>0?'warn':''}"><div class="lbl">${semaforoDot('rojo')}Cartera vencida</div><div class="val">${fmt(vencida)}</div><div class="sub">${nRojo} crédito(s) con atraso</div></div>
       <div class="stat-card ${morasAcum>0?'warn':''}"><div class="lbl">Cartera de moras</div><div class="val">${fmt(morasAcum)}</div><div class="sub">Interés moratorio pendiente de cobro</div></div>
-      <div class="stat-card"><div class="lbl">Cartera de interés</div><div class="val">${fmt(interesCartera)}</div><div class="sub">Interés total programado en créditos</div></div>
+      <div class="stat-card">
+        <div class="lbl">Cartera de interés</div>
+        <div style="display:flex;gap:14px;margin-top:6px">
+          <div><div style="font-size:10px;color:var(--tinta-suave);text-transform:uppercase">Cobrado</div><div style="font-family:var(--font-disp);font-size:16px;color:var(--verde-900)">${fmt(interesCobrado)}</div></div>
+          <div><div style="font-size:10px;color:var(--tinta-suave);text-transform:uppercase">Por cobrar</div><div style="font-family:var(--font-disp);font-size:16px;color:var(--verde-900)">${fmt(interesPorCobrar)}</div></div>
+        </div>
+        <div class="sub">Total programado: ${fmt(interesCartera)}</div>
+      </div>
     </div>
     <div class="grid grid-3" style="margin-bottom:18px">
       <div class="stat-card"><div class="lbl">${semaforoDot('verde')}Créditos al día</div><div class="val">${nVerde}</div><div class="sub">Próxima cuota a más de 5 días</div></div>
@@ -825,7 +895,7 @@ function eliminarSocio(id){
   }
   if(!confirm(msg)) return;
   // revertir aportes al fondo de desgravamen de los créditos que se van a borrar
-  cred.forEach(c=>{ if(c.aporteDesgravamen) DB.fondos.desgravamen = round2(Math.max(0, DB.fondos.desgravamen - c.aporteDesgravamen)); });
+  cred.forEach(c=>{ if(c.aporteDesgravamen) registrarMovimientoFondo('desgravamen','egreso', c.aporteDesgravamen, `Reversión por eliminación del socio ${s.nombres} (crédito #${c.numero})`); });
   DB.creditos = DB.creditos.filter(c=>c.solicitanteId!==id);
   const ahorroIds = ahorrosSocio.map(a=>a.id);
   DB.ahorros = DB.ahorros.filter(a=>a.socioId!==id);
@@ -933,8 +1003,9 @@ function openAhorroDetalle(id){
       <div class="stat-card"><div class="lbl">Saldo actual</div><div class="val" style="font-size:20px">${fmt(a.saldo)}</div></div>
       <div class="stat-card"><div class="lbl">Interés acreditado</div><div class="val" style="font-size:20px">${fmt(totalInteres)}</div></div>
     </div>
-    <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Monto</th></tr></thead><tbody>
-      ${movs.map(m=>`<tr><td>${fmtDate(m.fecha)}</td><td>${m.tipo==='deposito'?'Depósito (ingreso)':(m.tipo==='retiro'?'Retiro (egreso)':'Interés acreditado')}</td><td>${fmt(m.monto)}</td></tr>`).join('') || '<tr><td colspan="3" style="color:var(--tinta-suave)">Sin movimientos</td></tr>'}
+    <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Monto</th><th></th></tr></thead><tbody>
+      ${movs.map(m=>`<tr><td>${fmtDate(m.fecha)}</td><td>${m.tipo==='deposito'?'Depósito (ingreso)':(m.tipo==='retiro'?'Retiro (egreso)':'Interés acreditado')}</td><td>${fmt(m.monto)}</td>
+      <td>${(m.tipo==='deposito'||m.tipo==='retiro')?`<button class="btn btn-sm btn-ghost" onclick="genComprobanteAhorro('${m.id}')">📄 Comprobante</button>`:''}</td></tr>`).join('') || '<tr><td colspan="4" style="color:var(--tinta-suave)">Sin movimientos</td></tr>'}
     </tbody></table></div>
     ${a.estado!=='cerrado' ? `
     <div class="grid grid-3" style="margin-top:16px">
@@ -964,8 +1035,36 @@ function movAhorro(ahorroId, tipo){
   if(tipo==='retiro' && val>a.saldo){ toast('El monto excede el saldo disponible','err'); return; }
   const signo = tipo==='retiro' ? -1 : 1;
   a.saldo = round2(a.saldo + signo*val);
-  DB.movAhorros.push({id:uid('mv'), ahorroId, fecha:todayISO(), tipo, monto:val});
-  saveDB(); toast('Movimiento registrado'); closeModal(); openAhorroDetalle(ahorroId);
+  const nuevoMov = {id:uid('mv'), ahorroId, fecha:todayISO(), tipo, monto:val};
+  DB.movAhorros.push(nuevoMov);
+  saveDB(); toast('Movimiento registrado'); closeModal();
+  if(tipo==='deposito' || tipo==='retiro'){
+    genComprobanteAhorro(nuevoMov.id);
+  } else {
+    openAhorroDetalle(ahorroId);
+  }
+}
+function genComprobanteAhorro(movId){
+  const m = DB.movAhorros.find(x=>x.id===movId); if(!m) return;
+  const a = DB.ahorros.find(x=>x.id===m.ahorroId); if(!a) return;
+  const s = socioById(a.socioId);
+  const esDeposito = m.tipo==='deposito';
+  printDoc(`<div class="doc-page compacto">
+    ${membreteHTML()}
+    <h2>${esc(DB.config.nombreCaja)}</h2>
+    <div class="doc-sub">COMPROBANTE DE ${esDeposito?'DEPOSITO':'RETIRO'} DE AHORRO</div>
+    <table style="width:100%">
+      <tr><th style="width:40%">Socio/a</th><td>${esc(s?s.nombres:'-')}</td></tr>
+      <tr><th>Cedula</th><td>${esc(s&&s.cedula||'-')}</td></tr>
+      <tr><th>Tipo de cuenta</th><td>${a.tipo==='plazo'?'Deposito a plazo fijo':'Ahorro voluntario'}</td></tr>
+      <tr><th>Fecha</th><td>${fmtDate(m.fecha)}</td></tr>
+      <tr><th style="background:#eee"><strong>${esDeposito?'Monto depositado':'Monto retirado'}</strong></th><td style="background:#eee"><strong>${fmt(m.monto)}</strong></td></tr>
+      <tr><th>Saldo resultante en la cuenta</th><td>${fmt(a.saldo)}</td></tr>
+      <tr><th>Tasa de interes de la cuenta</th><td>${a.tasaInteres}% anual</td></tr>
+    </table>
+    <p>${esDeposito?'La Caja recibe conforme el monto senalado, el cual queda registrado a favor del socio/a en su cuenta de ahorro.':'El/la socio/a recibe conforme el monto senalado, retirado de su cuenta de ahorro.'}</p>
+    <div class="doc-signs"><div>${esc(DB.config.nombreTesorero||'')}<br>Tesoreria</div><div>Recibido conforme<br>${esc(s?s.nombres:'Socio/a')}</div></div>
+  </div>`);
 }
 
 /* ================= CRÉDITOS ================= */
@@ -979,14 +1078,17 @@ function renderCreditos(main){
       </div>
     </div>
     <div class="pill-nav" id="credFiltroPills">
-      ${['todos','solicitado','aprobado','al_dia','por_vencer','vencido','cancelado','rechazado'].map(k=>`<button data-k="${k}" class="${k==='todos'?'active':''}" onclick="filtrarCreditos('${k}')">${credLabel(k)}</button>`).join('')}
+      ${['todos','solicitado','aprobado','al_dia','por_vencer','vencido','cancelado','novado','rechazado'].map(k=>`<button data-k="${k}" class="${k==='todos'?'active':''}" onclick="filtrarCreditos('${k}')">${credLabel(k)}</button>`).join('')}
+    </div>
+    <div class="searchbar">
+      <input id="credSearch" placeholder="Buscar por nombre o cédula..." oninput="renderCreditosTabla()">
     </div>
     <div id="creditosWrap"></div>
   `;
   window._credFiltro='todos';
   renderCreditosTabla();
 }
-function credLabel(k){ return {todos:'Todos', solicitado:'Solicitados', aprobado:'Aprobados', al_dia:'Al dia', por_vencer:'Por vencer', vencido:'Vencidos', cancelado:'Cancelados', rechazado:'Rechazados'}[k]||k; }
+function credLabel(k){ return {todos:'Todos', solicitado:'Solicitados', aprobado:'Aprobados', al_dia:'Al dia', por_vencer:'Por vencer', vencido:'Vencidos', cancelado:'Cancelados', novado:'Novados', rechazado:'Rechazados'}[k]||k; }
 function filtrarCreditos(k){
   window._credFiltro = k;
   document.querySelectorAll('#credFiltroPills button').forEach(b=>b.classList.toggle('active', b.dataset.k===k));
@@ -995,11 +1097,19 @@ function filtrarCreditos(k){
 function renderCreditosTabla(){
   const wrap = document.getElementById('creditosWrap'); if(!wrap) return;
   const filtro = window._credFiltro||'todos';
+  const q = (document.getElementById('credSearch')?.value||'').trim().toLowerCase();
   const semMap = {al_dia:'verde', por_vencer:'amarillo', vencido:'rojo'};
   let list = DB.creditos.filter(c=>{
-    if(filtro==='todos') return true;
-    if(semMap[filtro]) return c.estado==='desembolsado' && creditoSemaforo(c)===semMap[filtro];
-    return c.estado===filtro;
+    if(filtro!=='todos'){
+      if(semMap[filtro]){ if(!(c.estado==='desembolsado' && creditoSemaforo(c)===semMap[filtro])) return false; }
+      else if(c.estado!==filtro) return false;
+    }
+    if(q){
+      const s = socioById(c.solicitanteId);
+      const match = s && (s.nombres.toLowerCase().includes(q) || (s.cedula||'').toLowerCase().includes(q));
+      if(!match) return false;
+    }
+    return true;
   }).sort((a,b)=>b.fechaSolicitud.localeCompare(a.fechaSolicitud));
   if(!list.length){ wrap.innerHTML = `<div class="empty"><div class="big">Sin resultados</div>No hay creditos en esta categoria.</div>`; return; }
   wrap.innerHTML = `<div class="table-wrap"><table><thead><tr><th></th><th>N</th><th>Solicitante</th><th>Monto</th><th>Plazo</th><th>Tasa</th><th>Mora</th><th>Estado</th><th></th></tr></thead><tbody>
@@ -1020,7 +1130,7 @@ function estadoBadge(estado, sem){
     if(sem==='amarillo') return '<span class="badge warn">Por vencer</span>';
     return '<span class="badge ok">Al dia</span>';
   }
-  const map = {solicitado:'<span class="badge info">Solicitado</span>', aprobado:'<span class="badge warn">Aprobado</span>', cancelado:'<span class="badge neutral">Cancelado</span>', rechazado:'<span class="badge bad">Rechazado</span>'};
+  const map = {solicitado:'<span class="badge info">Solicitado</span>', aprobado:'<span class="badge warn">Aprobado</span>', cancelado:'<span class="badge neutral">Cancelado</span>', novado:'<span class="badge info">Novado</span>', rechazado:'<span class="badge bad">Rechazado</span>'};
   return map[estado]||estado;
 }
 function siguienteNumeroCredito(){
@@ -1112,7 +1222,7 @@ function openCreditoHistoricoForm(){
     const nPagadas = Math.min(Number(d.cuotasPagadas)||0, nuevo.tabla.length);
     for(let i=0;i<nPagadas;i++){ nuevo.tabla[i].pagado = true; nuevo.tabla[i].fechaPago = nuevo.tabla[i].fechaVenc; }
     const aporteDesgravamen = round2(DB.config.desgravamenPorMes * nuevo.plazoMeses);
-    DB.fondos.desgravamen = round2(DB.fondos.desgravamen + aporteDesgravamen);
+    registrarMovimientoFondo('desgravamen','ingreso', aporteDesgravamen, `Aporte por desembolso de crédito histórico #${nuevo.numero}`);
     nuevo.aporteDesgravamen = aporteDesgravamen;
     DB.creditos.push(nuevo); saveDB();
     toast('Credito historico registrado'); renderCreditosTabla(); return true;
@@ -1140,6 +1250,11 @@ function openCreditoDetalle(id){
     <p><strong>Estado:</strong> ${estadoBadge(c.estado, sem)} ${c.estado==='desembolsado'?semaforoDot(sem):''}</p>
   `;
   if(c.estado==='desembolsado'){
+    const pctPagado = porcentajePagadoCredito(c);
+    if(pctPagado>=50){
+      body += `<div class="helptext" style="background:#FBEBD9">✅ Este crédito lleva <strong>${pctPagado}%</strong> del capital cancelado — es elegible para <strong>Crédito Novación (Art. 10 - Facilidades de créditos)</strong>.
+      <br><button class="btn btn-gold btn-sm" style="margin-top:8px" onclick="closeModal();abrirNovacion('${c.id}')">🔄 Generar crédito Novación</button></div>`;
+    }
     body += `<div class="field" style="max-width:340px"><label>Forma de calculo de mora</label>
       <select onchange="cambiarModoMora('${c.id}', this.value)">
         <option value="porCuota" ${c.modoMora!=='alFinalPlazo'?'selected':''}>Por cada cuota mensual vencida</option>
@@ -1159,12 +1274,16 @@ function openCreditoDetalle(id){
   }
   if(c.tabla && c.tabla.length){
     body += `<div class="leaf-divider"></div><h3 style="margin-bottom:8px">Tabla de amortizacion (sistema frances)</h3>
-    <div class="table-wrap" style="max-height:260px;overflow-y:auto"><table><thead><tr><th>#</th><th>Vence</th><th>Cuota</th><th>Capital</th><th>Interes</th><th>Saldo</th><th>Mora informativa</th><th></th></tr></thead><tbody>
-    ${c.tabla.map(t=>`<tr><td>${t.numero}</td><td>${fmtDate(t.fechaVenc)}</td><td>${fmt(t.cuota)}</td><td>${fmt(t.capital)}</td><td>${fmt(t.interes)}</td><td>${fmt(t.saldo)}</td>
-    <td>${t.pagado?'-':(moraCuota(t)>0?`<span style="color:var(--rojo)">${fmt(moraCuota(t))}</span>`:'-')}</td>
-    <td>${t.pagado?'<span class="badge ok">Pagada</span>':`<button class="btn btn-sm btn-primary" onclick="registrarPagoCuota('${c.id}',${t.numero})">Registrar pago</button>`}</td></tr>`).join('')}
+    <div class="table-wrap" style="max-height:260px;overflow-y:auto"><table><thead><tr><th>#</th><th>Vence</th><th>Cuota</th><th>Abonado</th><th>Pendiente</th><th>Saldo</th><th>Mora informativa</th><th></th></tr></thead><tbody>
+    ${c.tabla.map(t=>{
+      const abonado = t.abonado||0;
+      const pendienteCuota = round2(t.cuota - abonado);
+      return `<tr><td>${t.numero}</td><td>${fmtDate(t.fechaVenc)}</td><td>${fmt(t.cuota)}</td><td>${abonado>0?fmt(abonado):'-'}</td><td>${t.pagado?'-':fmt(pendienteCuota)}</td><td>${fmt(t.saldo)}</td>
+      <td>${t.pagado?'-':(moraCuota(t)>0?`<span style="color:var(--rojo)">${fmt(moraCuota(t))}</span>`:'-')}</td>
+      <td>${t.pagado?'<span class="badge ok">Pagada</span>':`<button class="btn btn-sm btn-primary" onclick="registrarPagoCuota('${c.id}',${t.numero})">${abonado>0?'Abonar más':'Abonar / Pagar'}</button>`}</td></tr>`;
+    }).join('')}
     </tbody></table></div>
-    <p class="hint">La columna de mora es informativa por cuota; el cobro o condonacion real de la mora se gestiona con los botones de arriba, segun lo que resuelva la directiva.</p>`;
+    <p class="hint">Puede registrar el pago completo de una cuota o un abono parcial — el sistema recuerda lo abonado hasta completarla. La columna de mora es informativa; el cobro o condonación real de la mora se gestiona con los botones de arriba, según lo que resuelva la directiva.</p>`;
   }
   let acciones = '<div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap">';
   acciones += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
@@ -1185,7 +1304,7 @@ function openCreditoDetalle(id){
 function eliminarCredito(id){
   const c = DB.creditos.find(x=>x.id===id); if(!c) return;
   if(!confirm(`¿Eliminar definitivamente el crédito #${c.numero}? Esta acción no se puede deshacer.`)) return;
-  if(c.aporteDesgravamen) DB.fondos.desgravamen = round2(Math.max(0, DB.fondos.desgravamen - c.aporteDesgravamen));
+  if(c.aporteDesgravamen) registrarMovimientoFondo('desgravamen','egreso', c.aporteDesgravamen, `Reversión por eliminación del crédito #${c.numero}`);
   DB.creditos = DB.creditos.filter(x=>x.id!==id);
   saveDB(); toast('Crédito eliminado'); closeModal(); renderCreditosTabla();
 }
@@ -1209,7 +1328,7 @@ function desembolsarCredito(id){
     c.tabla = calcularAmortizacion(c.monto, c.tasaInteres, c.plazoMeses, c.fechaDesembolso);
     c.estado = 'desembolsado';
     const aporteDesgravamen = round2(DB.config.desgravamenPorMes * c.plazoMeses);
-    DB.fondos.desgravamen = round2(DB.fondos.desgravamen + aporteDesgravamen);
+    registrarMovimientoFondo('desgravamen','ingreso', aporteDesgravamen, `Aporte por desembolso de crédito #${c.numero}`);
     c.aporteDesgravamen = aporteDesgravamen;
     saveDB(); toast('Credito desembolsado - tabla de amortizacion generada');
     setTimeout(()=>openCreditoDetalle(id),50);
@@ -1219,12 +1338,60 @@ function desembolsarCredito(id){
 function registrarPagoCuota(credId, numero){
   const c = DB.creditos.find(x=>x.id===credId); if(!c) return;
   const cuota = c.tabla.find(t=>t.numero===numero); if(!cuota || cuota.pagado) return;
-  if(!confirm(`Registrar pago de la cuota #${numero}\nCapital: ${fmt(cuota.capital)}\nInteres: ${fmt(cuota.interes)}\nTotal cuota: ${fmt(cuota.cuota)}\n\n(La mora, si existiera, se cobra o condona por separado con los botones de "Mora" del credito.)`)) return;
-  cuota.pagado = true; cuota.fechaPago = todayISO();
+  cuota.abonado = cuota.abonado||0;
+  const pendiente = round2(cuota.cuota - cuota.abonado);
+  const montoStr = prompt(`Cuota #${numero}\nTotal de la cuota: ${fmt(cuota.cuota)}\nYa abonado: ${fmt(cuota.abonado)}\nPendiente: ${fmt(pendiente)}\n\n¿Cuánto abona hoy? (puede ser el total o un abono parcial)`, pendiente.toFixed(2));
+  if(montoStr===null) return;
+  const monto = Number(montoStr);
+  if(!monto || monto<=0){ toast('Monto inválido','err'); return; }
+  if(monto > pendiente + 0.01){ toast('El monto no puede superar lo pendiente de esta cuota','err'); return; }
+  const propCapital = cuota.cuota>0 ? cuota.capital/cuota.cuota : 0;
+  const capitalAbonado = round2(monto*propCapital);
+  const interesAbonado = round2(monto - capitalAbonado);
+  cuota.abonado = round2(cuota.abonado + monto);
   c.pagosRegistrados = c.pagosRegistrados||[];
-  c.pagosRegistrados.push({fecha:todayISO(), cuota:numero, capital:cuota.capital, interes:cuota.interes, mora:0, total:cuota.cuota});
+  c.pagosRegistrados.push({fecha:todayISO(), cuota:numero, capital:capitalAbonado, interes:interesAbonado, mora:0, total:monto, parcial: cuota.abonado < cuota.cuota - 0.01});
+  const completada = cuota.abonado >= cuota.cuota - 0.01;
+  if(completada){ cuota.pagado = true; cuota.fechaPago = todayISO(); }
   if(c.tabla.every(t=>t.pagado)) c.estado = 'cancelado';
-  saveDB(); toast('Pago registrado'); openCreditoDetalle(credId);
+  saveDB(); toast(completada ? 'Cuota pagada por completo' : 'Abono parcial registrado'); openCreditoDetalle(credId);
+}
+
+/* ---- Crédito Novación (Art. 10 - Facilidades de créditos) ---- */
+function abrirNovacion(credId){
+  const c = DB.creditos.find(x=>x.id===credId); if(!c) return;
+  const s = socioById(c.solicitanteId);
+  const saldoActual = saldoCredito(c);
+  showModal(`Crédito Novación — ${s?s.nombres:''}`, `Art. 10: el crédito cancelado en más del 50% tiene derecho a un crédito de Novación. El saldo pendiente del crédito #${c.numero} (${fmt(saldoActual)}) queda cancelado y reemplazado por este nuevo crédito.`, `
+    <form id="novacionForm">
+      <div class="grid grid-2">
+        <div class="field"><label>Nuevo monto total (US$) *</label><input type="number" step="1" min="${saldoActual}" name="monto" required value="${saldoActual}"></div>
+        <div class="field"><label>Plazo (meses) *</label><input type="number" min="1" max="12" name="plazoMeses" required value="${c.plazoMeses}"></div>
+        <div class="field"><label>Tasa de interés anual (%)</label><input type="number" step="0.1" name="tasaInteres" value="${c.tasaInteres}"></div>
+        <div class="field"><label>Fecha de desembolso *</label><input type="date" name="fechaDesembolso" required value="${todayISO()}"></div>
+      </div>
+      <div class="helptext">El nuevo monto debe cubrir al menos el saldo pendiente (${fmt(saldoActual)}). Si además se entrega dinero adicional al socio, aumente el monto.</div>
+    </form>
+  `, ()=>{
+    const f = document.getElementById('novacionForm'); const d = Object.fromEntries(new FormData(f).entries());
+    const monto = Number(d.monto);
+    if(monto < saldoActual - 0.01){ toast('El monto debe cubrir al menos el saldo pendiente','err'); return false; }
+    c.estado = 'novado';
+    c.fechaNovacion = d.fechaDesembolso;
+    const nuevo = {
+      id: uid('cr'), numero: siguienteNumeroCredito(), solicitanteId:c.solicitanteId, monto, destino:c.destino||'productivo',
+      plazoMeses:Number(d.plazoMeses), tasaInteres:Number(d.tasaInteres), garante:c.garante||'', conyuge:c.conyuge||'',
+      modoMora: c.modoMora||'porCuota', fechaSolicitud:d.fechaDesembolso, fechaAprobacion:d.fechaDesembolso,
+      fechaDesembolso:d.fechaDesembolso, estado:'desembolsado', pagosRegistrados:[], novacionDe: c.id
+    };
+    nuevo.tabla = calcularAmortizacion(nuevo.monto, nuevo.tasaInteres, nuevo.plazoMeses, nuevo.fechaDesembolso);
+    const aporteDesgravamen = round2(DB.config.desgravamenPorMes * nuevo.plazoMeses);
+    registrarMovimientoFondo('desgravamen','ingreso', aporteDesgravamen, `Aporte por desembolso de crédito #${nuevo.numero} (Novación del #${c.numero})`);
+    nuevo.aporteDesgravamen = aporteDesgravamen;
+    DB.creditos.push(nuevo);
+    saveDB(); toast('Crédito Novación generado — el crédito anterior queda cancelado'); render();
+    return true;
+  });
 }
 
 /* ================= MULTAS Y ASAMBLEAS (Art. 8 y 9) ================= */
@@ -1336,10 +1503,52 @@ function actualizaMontoMulta(sel){
 }
 function pagarMulta(id){
   const m = DB.multas.find(x=>x.id===id); if(!m) return;
+  const s = socioById(m.socioId);
   if(!confirm(`Registrar el pago de ${fmt(m.monto)}?`)) return;
   m.pagada = true; m.fechaPago = todayISO();
-  DB.fondos.social = round2(DB.fondos.social + Number(m.monto));
+  registrarMovimientoFondo('social','ingreso', m.monto, `Multa pagada — ${esc(s?s.nombres:'socio')} (${TIPO_MULTA_INFO[m.tipo]?TIPO_MULTA_INFO[m.tipo].label:m.tipo})`);
   saveDB(); toast('Pago registrado — se sumó al fondo social'); renderMultasTabla();
+}
+
+/* ================= FONDOS (Art. 14 y 15) ================= */
+function renderFondos(main){
+  main.innerHTML = `
+    <div class="topbar"><div><h2>Fondos</h2><p class="desc">Ingresos, egresos y saldo del Fondo Social, Fondo de Desgravamen y Fondo de Gestión de Riesgos (Art. 14 y 15 del Reglamento).</p></div></div>
+    <div class="grid grid-3" style="align-items:start">
+      ${renderTarjetaFondo('social','Fondo Social')}
+      ${renderTarjetaFondo('desgravamen','Fondo de Desgravamen')}
+      ${renderTarjetaFondo('riesgos','Fondo de Gestión de Riesgos')}
+    </div>
+    <div class="leaf-divider"></div>
+    <div class="card">
+      <h3 style="margin-top:0">🏅 Socios con mayor interés generado en créditos</h3>
+      ${renderRankingInteres()}
+    </div>
+  `;
+}
+function renderTarjetaFondo(key, label){
+  const movs = (DB.fondosMovimientos||[]).filter(m=>m.fondo===key).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const ingresos = round2(movs.filter(m=>m.tipo==='ingreso').reduce((a,m)=>a+m.monto,0));
+  const egresos = round2(movs.filter(m=>m.tipo==='egreso').reduce((a,m)=>a+m.monto,0));
+  return `<div class="card">
+    <h3 style="margin-top:0">${label}</h3>
+    <div class="grid grid-3" style="margin-bottom:10px">
+      <div class="stat-card" style="padding:8px"><div class="lbl" style="font-size:10px">Ingresos</div><div class="val" style="font-size:14px">${fmt(ingresos)}</div></div>
+      <div class="stat-card" style="padding:8px"><div class="lbl" style="font-size:10px">Egresos</div><div class="val" style="font-size:14px">${fmt(egresos)}</div></div>
+      <div class="stat-card" style="padding:8px"><div class="lbl" style="font-size:10px">Saldo</div><div class="val" style="font-size:14px">${fmt(DB.fondos[key]||0)}</div></div>
+    </div>
+    <button class="btn btn-danger btn-sm" style="margin-bottom:10px" onclick="registrarEgresoFondo('${key}')">− Registrar egreso</button>
+    <div class="table-wrap" style="max-height:230px;overflow-y:auto"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th></tr></thead><tbody>
+      ${movs.slice(0,40).map(m=>`<tr><td>${fmtDate(m.fecha)}</td><td>${m.tipo==='ingreso'?'Ingreso':'Egreso'}</td><td style="font-size:11.5px">${esc(m.concepto||'')}</td><td>${m.tipo==='egreso'?'-':''}${fmt(m.monto)}</td></tr>`).join('') || '<tr><td colspan="4" style="color:var(--tinta-suave)">Sin movimientos</td></tr>'}
+    </tbody></table></div>
+  </div>`;
+}
+function renderRankingInteres(){
+  const lista = rankingInteresPorSocio().slice(0,10);
+  if(!lista.length) return `<p class="empty">Todavía no hay créditos con intereses generados.</p>`;
+  return `<div class="table-wrap"><table><thead><tr><th>#</th><th>Socio</th><th>Interés generado</th></tr></thead><tbody>
+    ${lista.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.socio.nombres)}</td><td><strong>${fmt(x.interes)}</strong></td></tr>`).join('')}
+  </tbody></table></div>`;
 }
 
 /* ================= DOCUMENTOS (índice) ================= */
@@ -1502,6 +1711,7 @@ function genEntregaCredito(credId){
   const s = socioById(c.solicitanteId);
   const aporteDesg = c.aporteDesgravamen||0;
   const montoNeto = round2(c.monto - aporteDesg);
+  const interesTotalCredito = round2((c.tabla||[]).reduce((a,t)=>a+t.interes,0));
   printDoc(`<div class="doc-page compacto">
     ${membreteHTML()}
     <h2>${esc(DB.config.nombreCaja)}</h2>
@@ -1513,6 +1723,7 @@ function genEntregaCredito(credId){
       <tr><th style="background:#eee"><strong>Monto neto entregado al socio</strong></th><td style="background:#eee"><strong>${fmt(montoNeto)}</strong></td></tr>
       <tr><th>Plazo</th><td>${c.plazoMeses} meses</td></tr>
       <tr><th>Tasa de interes</th><td>${c.tasaInteres}% anual</td></tr>
+      <tr><th>Interes total a generarse en el plazo</th><td>${fmt(interesTotalCredito)}</td></tr>
       <tr><th>Sistema de pago (Art. 6)</th><td>Amortizacion francesa, cuotas mensuales</td></tr>
       <tr><th>Primera cuota</th><td>${c.tabla&&c.tabla[0]?fmtDate(c.tabla[0].fechaVenc):'-'}</td></tr>
       <tr><th>Ultima cuota</th><td>${c.tabla&&c.tabla.length?fmtDate(c.tabla[c.tabla.length-1].fechaVenc):'-'}</td></tr>
@@ -1712,6 +1923,7 @@ function aplicarDBRemota(nuevaDB){
   nuevaDB.socios = nuevaDB.socios||[]; nuevaDB.creditos = nuevaDB.creditos||[]; nuevaDB.ahorros = nuevaDB.ahorros||[];
   nuevaDB.movAhorros = nuevaDB.movAhorros||[]; nuevaDB.multas = nuevaDB.multas||[];
   nuevaDB.fondos = Object.assign({social:0,desgravamen:0,riesgos:0}, nuevaDB.fondos||{});
+  nuevaDB.fondosMovimientos = nuevaDB.fondosMovimientos||[];
   DB = nuevaDB;
   saveDB(true);
 }
@@ -1836,6 +2048,7 @@ function renderGoogleSheets(main){
 function renderRespaldo(main){
   main.innerHTML = `
     <div class="topbar"><div><h2>Respaldo de datos</h2><p class="desc">La app funciona sin internet. Use esta sección para crear una copia de seguridad o pasar los datos a otro dispositivo cuando haya conexión.</p></div></div>
+    ${renderSeguridadCard()}
     <div class="grid grid-2">
       <div class="card">
         <h3 style="margin-top:0">⬇️ Exportar respaldo</h3>
@@ -1871,7 +2084,7 @@ function reiniciarDatosOperativos(){
   const confirmacion = prompt('Para confirmar, escriba la palabra BORRAR (en mayúsculas):');
   if(confirmacion !== 'BORRAR'){ toast('No se realizaron cambios — el texto no coincidió','err'); return; }
   DB.socios = []; DB.creditos = []; DB.ahorros = []; DB.movAhorros = []; DB.multas = [];
-  DB.fondos = { social:0, desgravamen:0, riesgos:0 };
+  DB.fondos = { social:0, desgravamen:0, riesgos:0 }; DB.fondosMovimientos = [];
   saveDB(); toast('Datos borrados — la app está lista para socios reales'); render();
 }
 
@@ -1900,6 +2113,7 @@ function restaurarRespaldo(){
       DB.config = Object.assign({}, CFG_DEFAULT, DB.config||{});
       DB.socios = DB.socios||[]; DB.creditos = DB.creditos||[]; DB.ahorros = DB.ahorros||[];
       DB.movAhorros = DB.movAhorros||[]; DB.multas = DB.multas||[]; DB.fondos = DB.fondos||{social:0,desgravamen:0,riesgos:0};
+      DB.fondosMovimientos = DB.fondosMovimientos||[];
       saveDB(); toast('Datos restaurados correctamente'); render();
     }catch(err){ toast('Archivo inválido','err'); }
   };
@@ -1985,15 +2199,120 @@ window.addEventListener('appinstalled', ()=>{
   toast('¡App instalada correctamente!');
 });
 
+/* ================= Seguridad de acceso (usuario y contraseña) =================
+   Esto NO es un cifrado fuerte de nivel bancario — es una traba sencilla para
+   evitar que alguien abra la app por accidente y borre información sin querer.
+   Las credenciales se guardan solo en este dispositivo (no viajan a Google Sheets). */
+const AUTH_KEY = 'cajaOSF_auth_v1';
+function loadAuth(){ try{ return JSON.parse(localStorage.getItem(AUTH_KEY)); }catch(e){ return null; } }
+function saveAuth(a){ localStorage.setItem(AUTH_KEY, JSON.stringify(a)); }
+function simpleHash(str){
+  let hash = 0;
+  for(let i=0;i<str.length;i++){ hash = (hash*31 + str.charCodeAt(i))>>>0; }
+  return 'h'+hash.toString(36)+'-'+str.length;
+}
+function iniciarSeguridad(){
+  const auth = loadAuth();
+  if(!auth){
+    mostrarPantallaConfigurarAcceso();
+  } else if(sessionStorage.getItem('cajaOSF_unlocked')==='1'){
+    arrancarApp();
+  } else {
+    mostrarPantallaLogin(auth);
+  }
+}
+function mostrarPantallaConfigurarAcceso(){
+  document.getElementById('authTitle').textContent = 'Configure el acceso a la app';
+  document.getElementById('authDesc').textContent = 'Cree un usuario y una contraseña para este dispositivo, así se evita que alguien borre información sin querer. Guárdelos en un lugar seguro.';
+  document.getElementById('authFormWrap').innerHTML = `
+    <form id="setupAuthForm" style="text-align:left">
+      <div class="field"><label>Usuario</label><input name="usuario" required placeholder="ej: tesoreria"></div>
+      <div class="field"><label>Contraseña</label><input type="password" name="pass" required minlength="4"></div>
+      <div class="field"><label>Repetir contraseña</label><input type="password" name="pass2" required minlength="4"></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px">Crear acceso y continuar</button>
+    </form>
+    <p style="margin-top:14px"><button class="btn btn-ghost btn-sm" onclick="omitirConfiguracionAcceso()">Configurar después</button></p>
+  `;
+  document.getElementById('authOverlay').style.display = 'flex';
+  document.getElementById('setupAuthForm').addEventListener('submit',(e)=>{
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(e.target).entries());
+    if(d.pass !== d.pass2){ toast('Las contraseñas no coinciden','err'); return; }
+    saveAuth({ usuario: d.usuario.trim(), passHash: simpleHash(d.pass) });
+    sessionStorage.setItem('cajaOSF_unlocked','1');
+    document.getElementById('authOverlay').style.display='none';
+    arrancarApp();
+    toast('Acceso configurado correctamente');
+  });
+}
+function omitirConfiguracionAcceso(){
+  document.getElementById('authOverlay').style.display='none';
+  sessionStorage.setItem('cajaOSF_unlocked','1');
+  arrancarApp();
+}
+function mostrarPantallaLogin(auth){
+  document.getElementById('authTitle').textContent = 'Acceso a la aplicación';
+  document.getElementById('authDesc').textContent = 'Ingrese su usuario y contraseña para continuar.';
+  document.getElementById('authFormWrap').innerHTML = `
+    <form id="loginAuthForm" style="text-align:left">
+      <div class="field"><label>Usuario</label><input name="usuario" required></div>
+      <div class="field"><label>Contraseña</label><input type="password" name="pass" required></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px">Ingresar</button>
+      <p id="loginError" style="color:var(--rojo);font-size:12.5px;margin-top:10px;display:none">Usuario o contraseña incorrectos.</p>
+    </form>
+  `;
+  document.getElementById('authOverlay').style.display = 'flex';
+  document.getElementById('loginAuthForm').addEventListener('submit',(e)=>{
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(e.target).entries());
+    if(d.usuario.trim()===auth.usuario && simpleHash(d.pass)===auth.passHash){
+      sessionStorage.setItem('cajaOSF_unlocked','1');
+      document.getElementById('authOverlay').style.display='none';
+      arrancarApp();
+    } else {
+      document.getElementById('loginError').style.display='block';
+    }
+  });
+}
+function renderSeguridadCard(){
+  const auth = loadAuth();
+  return `<div class="card" style="margin-bottom:16px">
+    <h3 style="margin-top:0">🔒 Acceso a la aplicación (este dispositivo)</h3>
+    <p style="font-size:13.5px;color:var(--tinta-suave)">${auth? `Usuario configurado: <strong>${esc(auth.usuario)}</strong>. Se pide usuario y contraseña cada vez que se abre la app en este dispositivo, para evitar borrados accidentales.` : 'Todavía no ha configurado usuario y contraseña en este dispositivo.'}</p>
+    <button class="btn btn-gold btn-sm" onclick="cambiarCredencialesAcceso()">${auth?'Cambiar usuario/contraseña':'Configurar usuario y contraseña'}</button>
+  </div>`;
+}
+function cambiarCredencialesAcceso(){
+  const auth = loadAuth();
+  showModal(auth?'Cambiar usuario y contraseña':'Configurar usuario y contraseña', 'Esto protege este dispositivo contra borrados accidentales. Guarde estos datos en un lugar seguro.', `
+    <form id="credAccesoForm">
+      ${auth?`<div class="field"><label>Contraseña actual</label><input type="password" name="passActual" required></div>`:''}
+      <div class="field"><label>Nuevo usuario</label><input name="usuario" required value="${auth?esc(auth.usuario):''}"></div>
+      <div class="field"><label>Nueva contraseña</label><input type="password" name="pass" required minlength="4"></div>
+      <div class="field"><label>Repetir nueva contraseña</label><input type="password" name="pass2" required minlength="4"></div>
+    </form>
+  `, ()=>{
+    const f = document.getElementById('credAccesoForm'); const d = Object.fromEntries(new FormData(f).entries());
+    if(auth && simpleHash(d.passActual)!==auth.passHash){ toast('La contraseña actual no es correcta','err'); return false; }
+    if(d.pass!==d.pass2){ toast('Las contraseñas nuevas no coinciden','err'); return false; }
+    saveAuth({usuario:d.usuario.trim(), passHash:simpleHash(d.pass)});
+    toast('Acceso actualizado'); if(currentTab==='respaldo') renderRespaldo(document.getElementById('mainContent'));
+    return true;
+  });
+}
+
 /* ================= Init ================= */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
 }
-document.addEventListener('DOMContentLoaded', ()=>{
+function arrancarApp(){
   render();
   updateConnStatus();
   verificarRecordatorioRespaldo();
   if(navigator.onLine) traerActualizacionesGoogleSheets(false);
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  iniciarSeguridad();
 });
 </script>
 </body>
