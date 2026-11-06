@@ -1810,21 +1810,47 @@ function renderConfig(main){
 
 /* ================= RESPALDO / SINCRONIZACIÓN ================= */
 /* ================= GOOGLE SHEETS (sincronizacion bidireccional) ================= */
-const GOOGLE_SCRIPT_CODE = `function doPost(e) {
+const GOOGLE_SCRIPT_CODE = `// ====== CAJA OMAGUAS SAN FRANCISCO - Web App de sincronizacion ======
+// Si este script se creo desde script.google.com (no desde Extensiones > Apps Script
+// dentro de la hoja), escriba aqui el ID de su hoja de calculo. El ID es el texto largo
+// de la direccion de la hoja, entre /d/ y /edit. Ejemplo: 1AbC...xyz
+var ID_HOJA = '';
+
+function abrirHoja_() {
+  var ss = null;
+  if (ID_HOJA) {
+    ss = SpreadsheetApp.openById(ID_HOJA);
+  } else {
+    ss = SpreadsheetApp.getActiveSpreadsheet();
+  }
+  if (!ss) {
+    throw new Error('El script no esta vinculado a ninguna hoja. Escriba el ID de su hoja de calculo en ID_HOJA (al inicio del codigo) y vuelva a implementar.');
+  }
+  return ss;
+}
+
+function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = abrirHoja_();
 
-    // ---- Hoja "AppData": guarda una copia completa de la base de datos de la app ----
-    // Esto es lo que permite ver los mismos datos en varios celulares y en la web.
+    // ---- Hoja "AppData": copia completa de la base de datos (se divide en trozos para no pasar el limite de una celda) ----
     var appData = ss.getSheetByName('AppData');
     if (!appData) appData = ss.insertSheet('AppData');
+    appData.clearContents();
     appData.getRange('A1').setValue('ultimaModificacion');
     appData.getRange('B1').setValue('datosCompletos (no editar a mano)');
-    appData.getRange('A2').setValue(data.ultimaModificacion || new Date().toISOString());
-    appData.getRange('B2').setValue(JSON.stringify(data.dbCompleta || {}));
+    var ultima = data.ultimaModificacion || new Date().toISOString();
+    var texto = JSON.stringify(data.dbCompleta || {});
+    var TAM = 40000;
+    var filas = [];
+    for (var i = 0, n = 0; i < texto.length; i += TAM, n++) {
+      filas.push([n === 0 ? ultima : '', texto.substr(i, TAM)]);
+    }
+    if (!filas.length) filas.push([ultima, '{}']);
+    appData.getRange(2, 1, filas.length, 2).setNumberFormat('@').setValues(filas);
 
-    // ---- Hoja "Saldos_Socios": copia de lectura facil para revisar en Sheets ----
+    // ---- Hoja "Saldos_Socios": copia de lectura facil ----
     var hoja = ss.getSheetByName('Saldos_Socios');
     if (!hoja) hoja = ss.insertSheet('Saldos_Socios');
     hoja.clearContents();
@@ -1833,7 +1859,6 @@ const GOOGLE_SCRIPT_CODE = `function doPost(e) {
       hoja.appendRow([s.nombre, s.cedula, s.tipo, s.estado, s.aporteCapital, s.ahorroVoluntario, s.ahorroPlazo, s.saldoCreditos, s.moraPendiente, data.fechaSync]);
     });
     hoja.getRange(1,1,1,10).setFontWeight('bold');
-    hoja.autoResizeColumns(1,10);
 
     // ---- Hoja "Resumen_Caja" ----
     var resumen = ss.getSheetByName('Resumen_Caja');
@@ -1845,7 +1870,6 @@ const GOOGLE_SCRIPT_CODE = `function doPost(e) {
     });
     resumen.appendRow(['Ultima actualizacion', data.fechaSync]);
     resumen.getRange(1,1,1,2).setFontWeight('bold');
-    resumen.autoResizeColumns(1,2);
 
     return ContentService.createTextOutput(JSON.stringify({ok:true, socios:(data.socios||[]).length}))
       .setMimeType(ContentService.MimeType.JSON);
@@ -1857,16 +1881,17 @@ const GOOGLE_SCRIPT_CODE = `function doPost(e) {
 
 function doGet(e) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = abrirHoja_();
     var appData = ss.getSheetByName('AppData');
-    if (!appData) {
+    if (!appData || appData.getLastRow() < 2) {
       return ContentService.createTextOutput(JSON.stringify({ok:true, dbCompleta:null, ultimaModificacion:null}))
         .setMimeType(ContentService.MimeType.JSON);
     }
-    var ultimaModificacion = appData.getRange('A2').getValue();
-    var datosTexto = appData.getRange('B2').getValue();
-    var dbCompleta = datosTexto ? JSON.parse(datosTexto) : null;
-    return ContentService.createTextOutput(JSON.stringify({ok:true, dbCompleta:dbCompleta, ultimaModificacion:ultimaModificacion}))
+    var valores = appData.getRange(2, 1, appData.getLastRow() - 1, 2).getValues();
+    var ultima = valores[0][0];
+    var texto = valores.map(function(f){ return String(f[1] || ''); }).join('');
+    var db = texto ? JSON.parse(texto) : null;
+    return ContentService.createTextOutput(JSON.stringify({ok:true, dbCompleta:db, ultimaModificacion:ultima}))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ok:false, error:String(err)}))
@@ -1898,23 +1923,32 @@ function construirPayloadSheets(){
 // Sube (empuja) los datos de ESTE dispositivo hacia Google Sheets, sobrescribiendo lo que hubiera ahi.
 async function sincronizarGoogleSheets(manual){
   const url = (DB.config.googleSheetsUrl||'').trim();
-  if(!url){ if(manual) toast('Primero configure la URL del Web App de Google Apps Script','err'); return; }
-  if(!navigator.onLine){ if(manual) toast('Sin conexión — no se puede sincronizar ahora mismo.','err'); return; }
+  if(!url){ if(manual) toast('Primero configure la URL del Web App de Google Apps Script','err'); return false; }
+  if(!navigator.onLine){ if(manual) toast('Sin conexión — no se puede sincronizar ahora mismo.','err'); return false; }
   const payload = construirPayloadSheets();
+  let ok = false;
   try{
     const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
-    let json = {ok:true};
+    let json = null;
     try{ json = await resp.json(); }catch(_e){}
-    DB.config.googleSheetsUltimaSync = new Date().toISOString();
-    DB.config.googleSheetsUltimoResultado = json.ok ? `Subido correctamente: ${json.socios!=null?json.socios:payload.socios.length} socio(s)` : `Error: ${json.error||'respuesta inesperada'}`;
+    if(!json){
+      DB.config.googleSheetsUltimoResultado = 'Error: Google no devolvió una respuesta válida. Revise que la implementación tenga acceso "Cualquier usuario" y que la URL termine en /exec.';
+    } else if(json.ok){
+      ok = true;
+      DB.config.googleSheetsUltimaSync = new Date().toISOString();
+      DB.config.googleSheetsUltimoResultado = `Subido correctamente: ${json.socios!=null?json.socios:payload.socios.length} socio(s)`;
+    } else {
+      DB.config.googleSheetsUltimoResultado = `Error: ${json.error||'respuesta inesperada'}`;
+    }
     saveDB(true);
-    if(manual) toast(json.ok ? 'Datos subidos a Google Sheets correctamente' : 'Google Sheets respondió con un error — revise el código pegado en Apps Script', !json.ok);
+    if(manual) toast(ok ? 'Datos subidos a Google Sheets correctamente' : (DB.config.googleSheetsUltimoResultado), !ok);
   }catch(err){
     DB.config.googleSheetsUltimoResultado = 'No se pudo conectar (revise la URL o que la implementación sea pública)';
     saveDB(true);
     if(manual) toast('No se pudo subir a Google Sheets','err');
   }
   if(currentTab==='sheets') renderGoogleSheets(document.getElementById('mainContent'));
+  return ok;
 }
 // Trae (descarga) los datos guardados en Google Sheets y los compara con los de este dispositivo.
 // Si lo de Sheets es mas reciente, pregunta antes de reemplazar los datos locales.
@@ -1927,6 +1961,9 @@ function aplicarDBRemota(nuevaDB){
   DB = nuevaDB;
   saveDB(true);
 }
+function bdVacia(){
+  return !DB.socios.length && !DB.creditos.length && !DB.ahorros.length && !DB.multas.length;
+}
 async function traerActualizacionesGoogleSheets(manual){
   const url = (DB.config.googleSheetsUrl||'').trim();
   if(!url){ if(manual) toast('Primero configure la URL del Web App de Google Apps Script','err'); return; }
@@ -1934,17 +1971,18 @@ async function traerActualizacionesGoogleSheets(manual){
   try{
     const resp = await fetch(url, { method:'GET' });
     const json = await resp.json();
-    if(!json.ok){ if(manual) toast('Google Sheets respondió con un error al buscar actualizaciones','err'); return; }
+    if(!json.ok){ if(manual) toast('Google Sheets respondió con un error: '+(json.error||'revise el código de Apps Script'),'err'); return; }
     if(!json.dbCompleta || !json.ultimaModificacion){ if(manual) toast('Todavía no hay datos guardados en Google Sheets — suba primero desde algún dispositivo.'); return; }
     const remotoFecha = new Date(json.ultimaModificacion).getTime();
     const localFecha = new Date(DB.ultimaModificacion||0).getTime();
-    if(remotoFecha <= localFecha){
-      if(manual) toast('Ya tiene los datos más recientes en este dispositivo.');
-      return;
-    }
     const cuando = new Date(json.ultimaModificacion).toLocaleString('es-EC');
-    const confirmar = confirm(`Hay datos más recientes en Google Sheets, actualizados el ${cuando}.\n\n¿Desea traerlos a este dispositivo? Esto reemplazará los datos que tiene guardados aquí ahora mismo.`);
-    if(!confirmar) return;
+    if(remotoFecha > localFecha || bdVacia()){
+      if(!confirm(`Hay datos en Google Sheets, actualizados el ${cuando}.\n\n¿Desea traerlos a este dispositivo? Esto reemplazará los datos que tiene guardados aquí ahora mismo.`)) return;
+    } else {
+      if(!manual) return;
+      const aqui = new Date(DB.ultimaModificacion).toLocaleString('es-EC');
+      if(!confirm(`Este dispositivo parece tener datos iguales o más recientes (aquí: ${aqui}; en la nube: ${cuando}).\n\n¿Desea IGUALMENTE reemplazar lo de este dispositivo por lo que hay en la nube?`)) return;
+    }
     aplicarDBRemota(json.dbCompleta);
     toast('Datos actualizados desde Google Sheets');
     render();
@@ -1962,17 +2000,18 @@ async function sincronizarInteligente(){
   try{
     const resp = await fetch(url, { method:'GET' });
     const json = await resp.json();
-    if(!json.ok){ toast('Google Sheets respondió con un error','err'); return; }
+    if(!json.ok){ toast('Google Sheets respondió con un error: '+(json.error||'revise el código de Apps Script'),'err'); return; }
     const remotoFecha = json.ultimaModificacion ? new Date(json.ultimaModificacion).getTime() : 0;
     const localFecha = new Date(DB.ultimaModificacion||0).getTime();
-    if(json.dbCompleta && remotoFecha > localFecha){
+    if(json.dbCompleta && (remotoFecha > localFecha || bdVacia())){
       const cuando = new Date(json.ultimaModificacion).toLocaleString('es-EC');
       if(!confirm(`Hay datos más recientes (actualizados el ${cuando}).\n\n¿Traerlos a este dispositivo? Esto reemplazará lo que tiene guardado aquí ahora mismo.`)) return;
       aplicarDBRemota(json.dbCompleta);
       toast('✅ Datos actualizados desde la nube'); render();
     } else {
-      await sincronizarGoogleSheets(false);
-      toast('✅ Sus datos quedaron subidos y actualizados en la nube');
+      const ok = await sincronizarGoogleSheets(false);
+      if(ok) toast('✅ Sus datos quedaron subidos y actualizados en la nube');
+      else toast('No se pudo subir: '+(DB.config.googleSheetsUltimoResultado||'revise la conexión'),'err');
     }
   }catch(err){
     toast('No se pudo sincronizar — revise su conexión o la URL configurada','err');
