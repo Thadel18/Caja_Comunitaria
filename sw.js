@@ -3,7 +3,7 @@
 // Cuando hay conexión, revisa en segundo plano si hay una versión nueva
 // del archivo y la guarda para la próxima vez que se abra la app.
 
-const CACHE_NAME = 'caja-osf-v5';
+const CACHE_NAME = 'caja-osf-v6';
 const ASSETS = [
   './',
   './index.html',

@@ -2250,6 +2250,11 @@ function simpleHash(str){
   for(let i=0;i<str.length;i++){ hash = (hash*31 + str.charCodeAt(i))>>>0; }
   return 'h'+hash.toString(36)+'-'+str.length;
 }
+function normUsuario(u){ return String(u||'').trim().toLowerCase(); }
+function passCoincide(auth, pass){
+  const p = String(pass==null?'':pass);
+  return [p, p.trim(), p.trim()+' '].some(c=>simpleHash(c)===auth.passHash);
+}
 function iniciarSeguridad(){
   const auth = loadAuth();
   if(!auth){
@@ -2265,9 +2270,10 @@ function mostrarPantallaConfigurarAcceso(){
   document.getElementById('authDesc').textContent = 'Cree un usuario y una contraseña para este dispositivo, así se evita que alguien borre información sin querer. Guárdelos en un lugar seguro.';
   document.getElementById('authFormWrap').innerHTML = `
     <form id="setupAuthForm" style="text-align:left">
-      <div class="field"><label>Usuario</label><input name="usuario" required placeholder="ej: tesoreria"></div>
-      <div class="field"><label>Contraseña</label><input type="password" name="pass" required minlength="4"></div>
-      <div class="field"><label>Repetir contraseña</label><input type="password" name="pass2" required minlength="4"></div>
+      <div class="field"><label>Usuario</label><input name="usuario" required placeholder="ej: tesoreria" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username"></div>
+      <div class="field"><label>Contraseña</label><input type="password" name="pass" required minlength="4" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="new-password"></div>
+      <div class="field"><label>Repetir contraseña</label><input type="password" name="pass2" required minlength="4" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="new-password"></div>
+      <label style="font-size:12.5px;display:block;margin-bottom:8px"><input type="checkbox" style="width:auto;display:inline-block;margin-right:6px" onchange="this.form.pass.type=this.checked?'text':'password';this.form.pass2.type=this.checked?'text':'password'">Mostrar contraseña</label>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px">Crear acceso y continuar</button>
     </form>
     <p style="margin-top:14px"><button class="btn btn-ghost btn-sm" onclick="omitirConfiguracionAcceso()">Configurar después</button></p>
@@ -2276,8 +2282,8 @@ function mostrarPantallaConfigurarAcceso(){
   document.getElementById('setupAuthForm').addEventListener('submit',(e)=>{
     e.preventDefault();
     const d = Object.fromEntries(new FormData(e.target).entries());
-    if(d.pass !== d.pass2){ toast('Las contraseñas no coinciden','err'); return; }
-    saveAuth({ usuario: d.usuario.trim(), passHash: simpleHash(d.pass) });
+    if(d.pass.trim() !== d.pass2.trim()){ toast('Las contraseñas no coinciden','err'); return; }
+    saveAuth({ usuario: d.usuario.trim(), passHash: simpleHash(d.pass.trim()) });
     sessionStorage.setItem('cajaOSF_unlocked','1');
     document.getElementById('authOverlay').style.display='none';
     arrancarApp();
@@ -2294,17 +2300,19 @@ function mostrarPantallaLogin(auth){
   document.getElementById('authDesc').textContent = 'Ingrese su usuario y contraseña para continuar.';
   document.getElementById('authFormWrap').innerHTML = `
     <form id="loginAuthForm" style="text-align:left">
-      <div class="field"><label>Usuario</label><input name="usuario" required></div>
-      <div class="field"><label>Contraseña</label><input type="password" name="pass" required></div>
+      <div class="field"><label>Usuario</label><input name="usuario" required autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username"></div>
+      <div class="field"><label>Contraseña</label><input type="password" name="pass" required autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="current-password"></div>
+      <label style="font-size:12.5px;display:block;margin-bottom:8px"><input type="checkbox" style="width:auto;display:inline-block;margin-right:6px" onchange="this.form.pass.type=this.checked?'text':'password'">Mostrar contraseña</label>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px">Ingresar</button>
       <p id="loginError" style="color:var(--rojo);font-size:12.5px;margin-top:10px;display:none">Usuario o contraseña incorrectos.</p>
     </form>
+    <p style="margin-top:14px"><button class="btn btn-ghost btn-sm" onclick="olvidoContrasena()">¿Olvidó su contraseña?</button></p>
   `;
   document.getElementById('authOverlay').style.display = 'flex';
   document.getElementById('loginAuthForm').addEventListener('submit',(e)=>{
     e.preventDefault();
     const d = Object.fromEntries(new FormData(e.target).entries());
-    if(d.usuario.trim()===auth.usuario && simpleHash(d.pass)===auth.passHash){
+    if(normUsuario(d.usuario)===normUsuario(auth.usuario) && passCoincide(auth, d.pass)){
       sessionStorage.setItem('cajaOSF_unlocked','1');
       document.getElementById('authOverlay').style.display='none';
       arrancarApp();
@@ -2312,6 +2320,15 @@ function mostrarPantallaLogin(auth){
       document.getElementById('loginError').style.display='block';
     }
   });
+}
+function olvidoContrasena(){
+  const t = prompt('Esto NO borra sus datos (socios, créditos, ahorros). Solo quita el usuario y la contraseña de ESTE dispositivo para que pueda crear unos nuevos.\n\nPara continuar escriba la palabra RESTABLECER:');
+  if(t===null) return;
+  if(t.trim().toUpperCase()!=='RESTABLECER'){ toast('No se realizaron cambios','err'); return; }
+  localStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem('cajaOSF_unlocked');
+  mostrarPantallaConfigurarAcceso();
+  toast('Cree ahora un usuario y contraseña nuevos');
 }
 function renderSeguridadCard(){
   const auth = loadAuth();
@@ -2332,9 +2349,9 @@ function cambiarCredencialesAcceso(){
     </form>
   `, ()=>{
     const f = document.getElementById('credAccesoForm'); const d = Object.fromEntries(new FormData(f).entries());
-    if(auth && simpleHash(d.passActual)!==auth.passHash){ toast('La contraseña actual no es correcta','err'); return false; }
-    if(d.pass!==d.pass2){ toast('Las contraseñas nuevas no coinciden','err'); return false; }
-    saveAuth({usuario:d.usuario.trim(), passHash:simpleHash(d.pass)});
+    if(auth && !passCoincide(auth, d.passActual)){ toast('La contraseña actual no es correcta','err'); return false; }
+    if(d.pass.trim()!==d.pass2.trim()){ toast('Las contraseñas nuevas no coinciden','err'); return false; }
+    saveAuth({usuario:d.usuario.trim(), passHash:simpleHash(d.pass.trim())});
     toast('Acceso actualizado'); if(currentTab==='respaldo') renderRespaldo(document.getElementById('mainContent'));
     return true;
   });
