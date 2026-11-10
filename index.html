@@ -303,6 +303,8 @@ const CFG_DEFAULT = {
   parroquia: 'Enokanqui',
   canton: 'La Joya de los Sachas',
   provincia: 'Orellana',
+  saldoIncluyePlazoFijo: 'si',
+  saldoAjusteManual: 0,
   nombreGerente: 'Klever Tanguila',
   nombreTesorero: 'Carlos Alvarado',
   nombreSecretario: 'Geovany Calapucha',
@@ -324,6 +326,13 @@ let DB = loadDB();
 let currentTab = 'dashboard';
 let printAfterLoad = false;
 
+function capitalComunitarioPorDefecto(){
+  return ['TRACTOR','CAJA COMUNITARIO ANTIGUO','PROYECTO PONEDORAS'].map((n,i)=>({id:'cc_base_'+i, nombre:n, aportes:[], incluirEnSaldo:true}));
+}
+function normalizarCapitalComunitario(arr){
+  if(!Array.isArray(arr)) return capitalComunitarioPorDefecto();
+  return arr.map(t=>({id:t.id||uid('cc'), nombre:t.nombre||'Sin nombre', aportes:Array.isArray(t.aportes)?t.aportes:[], incluirEnSaldo:t.incluirEnSaldo!==false}));
+}
 function loadDB(){
   try{
     const raw = localStorage.getItem(DB_KEY);
@@ -337,11 +346,12 @@ function loadDB(){
       parsed.multas = parsed.multas||[];
       parsed.fondos = Object.assign({ social:0, desgravamen:0, riesgos:0 }, parsed.fondos||{});
       parsed.fondosMovimientos = parsed.fondosMovimientos||[];
+      parsed.capitalComunitario = normalizarCapitalComunitario(parsed.capitalComunitario);
       parsed.ultimaModificacion = parsed.ultimaModificacion || new Date().toISOString();
       return parsed;
     }
   }catch(e){ console.error('Error cargando datos', e); }
-  return { socios:[], creditos:[], ahorros:[], movAhorros:[], multas:[], fondos:{social:0,desgravamen:0,riesgos:0}, fondosMovimientos:[], config: Object.assign({},CFG_DEFAULT), ultimaModificacion: new Date().toISOString() };
+  return { socios:[], creditos:[], ahorros:[], movAhorros:[], multas:[], fondos:{social:0,desgravamen:0,riesgos:0}, fondosMovimientos:[], capitalComunitario: capitalComunitarioPorDefecto(), config: Object.assign({},CFG_DEFAULT), ultimaModificacion: new Date().toISOString() };
 }
 function saveDB(sinMarcarModificacion){
   if(!sinMarcarModificacion) DB.ultimaModificacion = new Date().toISOString();
@@ -657,6 +667,7 @@ function renderDashboard(main){
     <div class="topbar">
       <div><h2>Panel General</h2><p class="desc">Resumen en tiempo real de la ${esc(DB.config.nombreCaja)}, comunidad ${esc(DB.config.comunidad)}.</p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" style="background:var(--verde-900);color:#fff" onclick="openSaldoDetalle()">💵 SALDO: ${fmt(calcularSaldoDisponible().total)}</button>
         <button class="btn btn-primary" onclick="goTab('socios');setTimeout(()=>openSocioForm(),50)">+ Nuevo socio</button>
         <button class="btn btn-gold" onclick="goTab('creditos');setTimeout(()=>openCreditoForm(),50)">+ Nueva solicitud</button>
       </div>
@@ -913,7 +924,11 @@ function renderAportes(main){
       <div><h2>Aportes de Capital</h2><p class="desc">Aporte inicial ${fmt(DB.config.aporteInicial)} · Aporte mensual mínimo ${fmt(DB.config.aporteMensual)} · Tope ${fmt(DB.config.aporteMaximo)} por socio (Art. 1–3).</p></div>
       <button class="btn btn-primary" onclick="openAporteForm()">+ Registrar aporte</button>
     </div>
-    <div class="stat-card" style="max-width:260px;margin-bottom:18px"><div class="lbl">Capital social total</div><div class="val">${fmt(total)}</div></div>
+    <div class="grid grid-3" style="margin-bottom:18px">
+      <div class="stat-card"><div class="lbl">Capital social total</div><div class="val">${fmt(total)}</div><div class="sub">Aporte de los socios</div></div>
+      <div class="stat-card"><div class="lbl">Capital social comunitario</div><div class="val">${fmt(totalCapitalComunitario())}</div><div class="sub">Tractor, caja antigua, proyectos...</div></div>
+      <div class="stat-card"><div class="lbl">Capital total (socios + comunitario)</div><div class="val">${fmt(total+totalCapitalComunitario())}</div></div>
+    </div>
     <div class="table-wrap"><table><thead><tr><th>Socio</th><th>Aportado</th><th>Meta ($${DB.config.aporteMaximo})</th><th>Progreso</th></tr></thead><tbody>
     ${sociosActivos().map(s=>{
       const t = totalAportesSocio(s); const pct = Math.min(100, Math.round(t/DB.config.aporteMaximo*100));
@@ -921,8 +936,134 @@ function renderAportes(main){
       <td><div style="background:var(--crema-2);border-radius:6px;height:9px;width:140px;overflow:hidden"><div style="background:var(--verde-500);height:100%;width:${pct}%"></div></div><span style="font-size:11px;color:var(--tinta-suave)">${pct}%</span></td></tr>`;
     }).join('') || '<tr><td colspan="4" class="empty">No hay socios activos.</td></tr>'}
     </tbody></table></div>
+    ${renderCapitalComunitarioSeccion()}
   `;
 }
+
+/* ---------- Capital social comunitario (tractor, caja antigua, ponedoras y otros) ---------- */
+function totalTipoComunitario(t){ return round2((t.aportes||[]).reduce((a,x)=>a+Number(x.monto),0)); }
+function totalCapitalComunitario(){ return round2((DB.capitalComunitario||[]).reduce((a,t)=>a+totalTipoComunitario(t),0)); }
+function capitalComunitarioParaSaldo(){ return round2((DB.capitalComunitario||[]).filter(t=>t.incluirEnSaldo!==false).reduce((a,t)=>a+totalTipoComunitario(t),0)); }
+function renderCapitalComunitarioSeccion(){
+  const tipos = DB.capitalComunitario||[];
+  return `<div class="leaf-divider"></div>
+  <div class="topbar" style="margin-bottom:12px">
+    <div><h3 style="margin:0">Capital social comunitario</h3><p class="desc">Aportes de proyectos y fondos de la comunidad al capital de la caja. Puede agregar otros tipos de aporte con el botón de la derecha.</p></div>
+    <button class="btn btn-gold" onclick="openTipoComunitarioForm()">+ Agregar otro tipo de aporte</button>
+  </div>
+  <div class="table-wrap"><table><thead><tr><th>Tipo de aporte</th><th>Total aportado</th><th>Cuenta para saldo de créditos</th><th></th></tr></thead><tbody>
+  ${tipos.map(t=>`<tr><td><strong>${esc(t.nombre)}</strong></td><td>${fmt(totalTipoComunitario(t))}</td><td>${t.incluirEnSaldo!==false?'<span class="badge ok">Sí</span>':'<span class="badge neutral">No</span>'}</td>
+    <td style="white-space:nowrap"><button class="btn btn-sm btn-primary" onclick="openAporteComunitarioForm('${t.id}')">+ Aporte</button>
+    <button class="btn btn-sm btn-ghost" onclick="verMovimientosComunitario('${t.id}')">Movimientos</button>
+    <button class="btn btn-sm btn-ghost" onclick="openTipoComunitarioForm('${t.id}')">Editar</button></td></tr>`).join('') || '<tr><td colspan="4" style="color:var(--tinta-suave)">No hay tipos de aporte comunitario. Agregue uno.</td></tr>'}
+  </tbody></table></div>`;
+}
+function openAporteComunitarioForm(tipoId){
+  const t = (DB.capitalComunitario||[]).find(x=>x.id===tipoId); if(!t) return;
+  showModal(`Aporte comunitario — ${t.nombre}`, 'Registre el dinero que ingresa al capital social comunitario por este concepto.', `
+    <form id="aporteComForm">
+      <div class="grid grid-2">
+        <div class="field"><label>Fecha *</label><input type="date" name="fecha" required value="${todayISO()}"></div>
+        <div class="field"><label>Monto (US$) *</label><input type="number" step="0.01" min="0.01" name="monto" required></div>
+      </div>
+      <div class="field"><label>Detalle / referencia</label><input name="concepto" placeholder="Ej: alquiler del tractor, utilidades del proyecto"></div>
+    </form>
+  `, ()=>{
+    const f = document.getElementById('aporteComForm'); const d = Object.fromEntries(new FormData(f).entries());
+    const monto = Number(d.monto);
+    if(!monto || monto<=0){ toast('Ingrese un monto válido','err'); return false; }
+    t.aportes.push({id:uid('apc'), fecha:d.fecha, monto, concepto:d.concepto||''});
+    saveDB(); toast('Aporte comunitario registrado'); renderAportes(document.getElementById('mainContent')); return true;
+  });
+}
+function verMovimientosComunitario(tipoId){
+  const t = (DB.capitalComunitario||[]).find(x=>x.id===tipoId); if(!t) return;
+  const movs = (t.aportes||[]).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  showModal(`Movimientos — ${t.nombre}`, `Total aportado: ${fmt(totalTipoComunitario(t))}`, `
+    <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Detalle</th><th>Monto</th><th></th></tr></thead><tbody>
+    ${movs.map(m=>`<tr><td>${fmtDate(m.fecha)}</td><td>${esc(m.concepto||'—')}</td><td>${fmt(m.monto)}</td><td><button class="btn btn-sm btn-danger" onclick="eliminarMovComunitario('${t.id}','${m.id}')">🗑️</button></td></tr>`).join('') || '<tr><td colspan="4" style="color:var(--tinta-suave)">Sin aportes registrados</td></tr>'}
+    </tbody></table></div>
+  `, null, true);
+}
+function eliminarMovComunitario(tipoId, movId){
+  const t = (DB.capitalComunitario||[]).find(x=>x.id===tipoId); if(!t) return;
+  if(!confirm('¿Eliminar este aporte? Esta acción no se puede deshacer.')) return;
+  t.aportes = t.aportes.filter(m=>m.id!==movId);
+  saveDB(); toast('Aporte eliminado'); closeModal(); renderAportes(document.getElementById('mainContent'));
+}
+function openTipoComunitarioForm(tipoId){
+  const t = tipoId ? (DB.capitalComunitario||[]).find(x=>x.id===tipoId) : null;
+  showModal(t?'Editar tipo de aporte':'Nuevo tipo de aporte comunitario', 'Ejemplos: Proyecto de huertos, Alquiler de maquinaria, Donación...', `
+    <form id="tipoComForm">
+      <div class="field"><label>Nombre del aporte *</label><input name="nombre" required value="${t?esc(t.nombre):''}"></div>
+      <div class="field"><label>¿Cuenta para el saldo disponible de créditos?</label>
+        <select name="incluir">
+          <option value="si" ${!t||t.incluirEnSaldo!==false?'selected':''}>Sí, es dinero disponible</option>
+          <option value="no" ${t&&t.incluirEnSaldo===false?'selected':''}>No (por ejemplo, un bien como una máquina)</option>
+        </select></div>
+    </form>
+    ${t?`<div class="modal-actions" style="justify-content:flex-start"><button class="btn btn-danger btn-sm" onclick="eliminarTipoComunitario('${t.id}')">🗑️ Eliminar este tipo de aporte</button></div>`:''}
+  `, ()=>{
+    const f = document.getElementById('tipoComForm'); const d = Object.fromEntries(new FormData(f).entries());
+    const nombre = (d.nombre||'').trim();
+    if(!nombre){ toast('Escriba el nombre del aporte','err'); return false; }
+    const repetido = (DB.capitalComunitario||[]).some(x=>x.id!==(t&&t.id) && x.nombre.trim().toLowerCase()===nombre.toLowerCase());
+    if(repetido){ toast('Ya existe un tipo de aporte con ese nombre','err'); return false; }
+    if(t){ t.nombre = nombre; t.incluirEnSaldo = d.incluir==='si'; }
+    else { DB.capitalComunitario.push({id:uid('cc'), nombre, aportes:[], incluirEnSaldo:d.incluir==='si'}); }
+    saveDB(); toast('Tipo de aporte guardado'); renderAportes(document.getElementById('mainContent')); return true;
+  });
+}
+function eliminarTipoComunitario(tipoId){
+  const t = (DB.capitalComunitario||[]).find(x=>x.id===tipoId); if(!t) return;
+  if(!confirm(`¿Eliminar "${t.nombre}" y sus ${t.aportes.length} aporte(s) por ${fmt(totalTipoComunitario(t))}? Esta acción no se puede deshacer.`)) return;
+  DB.capitalComunitario = DB.capitalComunitario.filter(x=>x.id!==tipoId);
+  saveDB(); toast('Tipo de aporte eliminado'); closeModal(); renderAportes(document.getElementById('mainContent'));
+}
+
+/* ---------- SALDO disponible para créditos ---------- */
+function moraCobradaParaFondoCredito(){
+  const total = DB.creditos.reduce((a,c)=>a+(c.historialMora||[]).filter(h=>h.tipo==='cobro').reduce((x,h)=>x+Number(h.monto),0),0);
+  return round2(total*0.5); // Art. 15: 50% de la mora se reinvierte en el fondo de crédito
+}
+function capitalPrestadoPendiente(){
+  return round2(DB.creditos.filter(c=>c.estado==='desembolsado').reduce((a,c)=>a+Math.max(0, c.monto - capitalPagadoCredito(c)),0));
+}
+function ahorroPlazoParaCreditos(){
+  return round2(DB.ahorros.filter(a=>a.tipo==='plazo' && a.estado!=='cerrado').reduce((acc,a)=>{
+    const interes = DB.movAhorros.filter(m=>m.ahorroId===a.id && m.tipo==='interes').reduce((x,m)=>x+Number(m.monto),0);
+    return acc + Math.max(0, a.saldo - interes);
+  },0));
+}
+function calcularSaldoDisponible(){
+  const incluirPlazo = DB.config.saldoIncluyePlazoFijo!=='no';
+  const ajuste = Number(DB.config.saldoAjusteManual)||0;
+  const items = [
+    {label:'Capital social de los socios', valor: totalCapitalSocial(), signo:1},
+    {label:'Capital social comunitario (tipos que cuentan para créditos)', valor: capitalComunitarioParaSaldo(), signo:1},
+  ];
+  if(incluirPlazo) items.push({label:'Ahorro a plazo fijo (sin los intereses acreditados)', valor: ahorroPlazoParaCreditos(), signo:1});
+  items.push({label:'Interés cobrado en créditos', valor: interesCobradoCreditos(), signo:1});
+  items.push({label:'Mora cobrada destinada al fondo de crédito (50%)', valor: moraCobradaParaFondoCredito(), signo:1});
+  if(ajuste) items.push({label:'Ajuste manual (saldo inicial / otros)', valor: Math.abs(ajuste), signo: ajuste>=0?1:-1});
+  items.push({label:'Capital prestado que aún no se ha cobrado', valor: capitalPrestadoPendiente(), signo:-1});
+  const total = round2(items.reduce((a,i)=>a+i.signo*i.valor,0));
+  return {items, total};
+}
+function openSaldoDetalle(){
+  const r = calcularSaldoDisponible();
+  const vol = totalAhorroPorTipo('voluntario');
+  showModal('Saldo disponible para créditos', 'Dinero que la caja puede prestar hoy. No incluye el ahorro voluntario ni los fondos social, de desgravamen y de gestión de riesgos.', `
+    <div class="stat-card ${r.total<0?'warn':''}" style="margin-bottom:14px"><div class="lbl">Saldo disponible</div><div class="val" style="font-size:30px">${fmt(r.total)}</div></div>
+    <div class="table-wrap"><table><tbody>
+    ${r.items.map(i=>`<tr><td>${i.signo>0?'＋':'－'} ${esc(i.label)}</td><td style="text-align:right;${i.signo<0?'color:var(--rojo)':''}">${i.signo<0?'-':''}${fmt(i.valor)}</td></tr>`).join('')}
+    <tr><td><strong>= Saldo disponible para créditos</strong></td><td style="text-align:right"><strong>${fmt(r.total)}</strong></td></tr>
+    </tbody></table></div>
+    <div class="helptext" style="margin-top:12px">🔒 El <strong>ahorro voluntario (${fmt(vol)})</strong> no se cuenta: está reservado para devolverlo a sus dueños cuando lo pidan.</div>
+    <div class="modal-actions" style="justify-content:flex-start"><button class="btn btn-ghost btn-sm" onclick="closeModal();goTab('config')">⚙️ Ajustar el criterio en Configuración</button></div>
+  `, null, true);
+}
+
 function openAporteForm(){
   if(!sociosActivos().length){ toast('Registre primero un socio','err'); return; }
   showModal('Registrar aporte de capital', 'Se sumará al historial de aportes del socio seleccionado.', `
@@ -1788,6 +1929,12 @@ function renderConfig(main){
         <div class="field"><label>Plazo mínimo (meses)</label><input type="number" step="1" name="ahorroPlazoMinMeses" value="${c.ahorroPlazoMinMeses}"></div>
       </div>
       <div class="leaf-divider"></div>
+      <h3>Saldo disponible para créditos</h3>
+      <div class="grid grid-3">
+        <div class="field"><label>¿Incluir ahorro a plazo fijo?</label><select name="saldoIncluyePlazoFijo"><option value="si" ${c.saldoIncluyePlazoFijo!=='no'?'selected':''}>Sí</option><option value="no" ${c.saldoIncluyePlazoFijo==='no'?'selected':''}>No</option></select><div class="hint">El ahorro voluntario nunca se incluye.</div></div>
+        <div class="field"><label>Ajuste manual (US$)</label><input type="number" step="0.01" name="saldoAjusteManual" value="${c.saldoAjusteManual||0}"><div class="hint">Para cuadrar con el dinero real en caja (puede ser negativo).</div></div>
+      </div>
+      <div class="leaf-divider"></div>
       <h3>Multas y sanciones (Art. 8)</h3>
       <div class="grid grid-3">
         <div class="field"><label>Atraso a asamblea (US$)</label><input type="number" step="0.01" name="multaAtraso" value="${c.multaAtraso}"></div>
@@ -1910,6 +2057,8 @@ function construirPayloadSheets(){
   }));
   const resumen = {
     'Capital social total': totalCapitalSocial(),
+    'Capital social comunitario': totalCapitalComunitario(),
+    'Saldo disponible para creditos': calcularSaldoDisponible().total,
     'Ahorro total': totalAhorros(),
     'Cartera vigente': carteraVigente(),
     'Cartera vencida': carteraVencida(),
@@ -1958,11 +2107,12 @@ function aplicarDBRemota(nuevaDB){
   nuevaDB.movAhorros = nuevaDB.movAhorros||[]; nuevaDB.multas = nuevaDB.multas||[];
   nuevaDB.fondos = Object.assign({social:0,desgravamen:0,riesgos:0}, nuevaDB.fondos||{});
   nuevaDB.fondosMovimientos = nuevaDB.fondosMovimientos||[];
+  nuevaDB.capitalComunitario = Array.isArray(nuevaDB.capitalComunitario) ? normalizarCapitalComunitario(nuevaDB.capitalComunitario) : normalizarCapitalComunitario(DB.capitalComunitario);
   DB = nuevaDB;
   saveDB(true);
 }
 function bdVacia(){
-  return !DB.socios.length && !DB.creditos.length && !DB.ahorros.length && !DB.multas.length;
+  return !DB.socios.length && !DB.creditos.length && !DB.ahorros.length && !DB.multas.length && !(DB.capitalComunitario||[]).some(t=>(t.aportes||[]).length);
 }
 async function traerActualizacionesGoogleSheets(manual){
   const url = (DB.config.googleSheetsUrl||'').trim();
@@ -2116,14 +2266,15 @@ function renderRespaldo(main){
   `;
 }
 function reiniciarDatosOperativos(){
-  const totalRegistros = DB.socios.length + DB.creditos.length + DB.ahorros.length + DB.multas.length;
+  const totalRegistros = DB.socios.length + DB.creditos.length + DB.ahorros.length + DB.multas.length + (DB.capitalComunitario||[]).reduce((a,t)=>a+(t.aportes||[]).length,0);
   if(totalRegistros===0){ toast('No hay datos operativos para borrar'); return; }
-  const paso1 = confirm(`Esto eliminará ${DB.socios.length} socio(s), ${DB.creditos.length} crédito(s), ${DB.ahorros.length} cuenta(s) de ahorro y ${DB.multas.length} multa(s). La configuración de tasas y Google Sheets NO se borrará.\n\n¿Desea continuar?`);
+  const paso1 = confirm(`Esto eliminará ${DB.socios.length} socio(s), ${DB.creditos.length} crédito(s), ${DB.ahorros.length} cuenta(s) de ahorro y ${DB.multas.length} multa(s), además de los aportes de capital comunitario. La configuración de tasas y Google Sheets NO se borrará.\n\n¿Desea continuar?`);
   if(!paso1) return;
   const confirmacion = prompt('Para confirmar, escriba la palabra BORRAR (en mayúsculas):');
   if(confirmacion !== 'BORRAR'){ toast('No se realizaron cambios — el texto no coincidió','err'); return; }
   DB.socios = []; DB.creditos = []; DB.ahorros = []; DB.movAhorros = []; DB.multas = [];
   DB.fondos = { social:0, desgravamen:0, riesgos:0 }; DB.fondosMovimientos = [];
+  DB.capitalComunitario = normalizarCapitalComunitario(DB.capitalComunitario).map(t=>({id:t.id, nombre:t.nombre, aportes:[], incluirEnSaldo:t.incluirEnSaldo}));
   saveDB(); toast('Datos borrados — la app está lista para socios reales'); render();
 }
 
@@ -2153,6 +2304,7 @@ function restaurarRespaldo(){
       DB.socios = DB.socios||[]; DB.creditos = DB.creditos||[]; DB.ahorros = DB.ahorros||[];
       DB.movAhorros = DB.movAhorros||[]; DB.multas = DB.multas||[]; DB.fondos = DB.fondos||{social:0,desgravamen:0,riesgos:0};
       DB.fondosMovimientos = DB.fondosMovimientos||[];
+      DB.capitalComunitario = normalizarCapitalComunitario(DB.capitalComunitario);
       saveDB(); toast('Datos restaurados correctamente'); render();
     }catch(err){ toast('Archivo inválido','err'); }
   };
