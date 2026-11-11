@@ -358,6 +358,7 @@ function saveDB(sinMarcarModificacion){
   localStorage.setItem(DB_KEY, JSON.stringify(DB));
   const t = document.getElementById('lastSaveTxt');
   if(t) t.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit'});
+  refrescarBalanceSiVisible();
   if(!sinMarcarModificacion && DB.config.googleSheetsUrl && DB.config.googleSheetsAutoSync){
     clearTimeout(window._syncTimeout);
     window._syncTimeout = setTimeout(()=>sincronizarGoogleSheets(false), 3500);
@@ -367,6 +368,7 @@ function saveDB(sinMarcarModificacion){
 /* ---------- Navegación ---------- */
 const TABS = [
   {id:'dashboard', label:'Panel General', icon:'🏠'},
+  {id:'balance', label:'Balance Anual', icon:'📈'},
   {id:'socios', label:'Socios', icon:'🧑‍🌾'},
   {id:'aportes', label:'Aportes de Capital', icon:'🪙'},
   {id:'ahorros', label:'Ahorros', icon:'💧'},
@@ -635,6 +637,7 @@ function render(){
     creditos: renderCreditos,
     multas: renderMultas,
     fondos: renderFondos,
+    balance: renderBalance,
     documentos: renderDocumentos,
     config: renderConfig,
     respaldo: renderRespaldo,
@@ -1692,6 +1695,441 @@ function renderRankingInteres(){
   </tbody></table></div>`;
 }
 
+/* ================= BALANCE ANUAL: DASHBOARD FINANCIERO Y SOCIAL ================= */
+const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function enAnio(fecha, anio){ return typeof fecha==='string' && fecha.slice(0,4)===String(anio); }
+function mesDe(fecha){ return Math.max(0, Math.min(11, parseInt(String(fecha).slice(5,7),10)-1)); }
+function sumar(arr){ return round2(arr.reduce((a,b)=>a+(Number(b)||0),0)); }
+function serieMensual(items, getFecha, getValor, anio){
+  const v = new Array(12).fill(0);
+  items.forEach(it=>{ const f = getFecha(it); if(enAnio(f, anio)) v[mesDe(f)] += Number(getValor(it))||0; });
+  return v.map(round2);
+}
+function sumaSeries(){ const out = new Array(12).fill(0); Array.from(arguments).forEach(a=>a.forEach((x,i)=>out[i]=round2(out[i]+x))); return out; }
+function aniosDisponibles(){
+  const set = new Set([String(new Date().getFullYear()), '2026']);
+  const add = f=>{ if(typeof f==='string' && /^\d{4}/.test(f)) set.add(f.slice(0,4)); };
+  DB.socios.forEach(s=>{ add(s.fechaIngreso); (s.aportes||[]).forEach(a=>add(a.fecha)); });
+  DB.creditos.forEach(c=>{ add(c.fechaSolicitud); add(c.fechaDesembolso); (c.pagosRegistrados||[]).forEach(p=>add(p.fecha)); });
+  DB.movAhorros.forEach(m=>add(m.fecha)); DB.multas.forEach(m=>add(m.fecha));
+  (DB.fondosMovimientos||[]).forEach(m=>add(m.fecha));
+  (DB.capitalComunitario||[]).forEach(t=>(t.aportes||[]).forEach(a=>add(a.fecha)));
+  return Array.from(set).map(Number).filter(n=>n>=2000 && n<=2100).sort((a,b)=>b-a);
+}
+
+function calcularBalanceAnual(anio){
+  const A = String(anio);
+  const entregados = DB.creditos.filter(c=>['desembolsado','cancelado','novado'].includes(c.estado));
+  const desemb = DB.creditos.filter(c=>c.estado==='desembolsado');
+
+  // ----- Créditos del año -----
+  const colocados = entregados.filter(c=>enAnio(c.fechaDesembolso, A));
+  const colocadoBruto = sumar(colocados.map(c=>c.monto));
+  const colocadoNeto = sumar(colocados.map(c=>c.monto-(c.aporteDesgravamen||0)));
+  const colocadoMes = serieMensual(colocados, c=>c.fechaDesembolso, c=>c.monto, A);
+  const pagos = []; DB.creditos.forEach(c=>(c.pagosRegistrados||[]).forEach(p=>pagos.push(p)));
+  const pagosAnio = pagos.filter(p=>enAnio(p.fecha, A));
+  const cobradoCapital = sumar(pagosAnio.map(p=>p.capital||0));
+  const cobradoInteres = sumar(pagosAnio.map(p=>p.interes||0));
+  const cobradoTotal = round2(cobradoCapital + cobradoInteres);
+  const recuperadoMes = serieMensual(pagos, p=>p.fecha, p=>(p.capital||0)+(p.interes||0), A);
+  const interesMes = serieMensual(pagos, p=>p.fecha, p=>p.interes||0, A);
+  let interesProgramado = 0;
+  entregados.forEach(c=>(c.tabla||[]).forEach(t=>{ if(enAnio(t.fechaVenc, A)) interesProgramado += Number(t.interes)||0; }));
+  interesProgramado = round2(interesProgramado);
+  const promedioMonto = colocados.length ? round2(colocadoBruto/colocados.length) : 0;
+  const promedioPlazo = colocados.length ? round2(colocados.reduce((a,c)=>a+c.plazoMeses,0)/colocados.length) : 0;
+  const productivos = colocados.filter(c=>c.destino==='productivo');
+  const consumo = colocados.filter(c=>c.destino!=='productivo');
+  const aSocios = colocados.filter(c=>{ const so = socioById(c.solicitanteId); return so && so.esComunidad; });
+  const aExternos = colocados.filter(c=>{ const so = socioById(c.solicitanteId); return so && !so.esComunidad; });
+  const porNovacion = colocados.filter(c=>c.novacionDe).length;
+  const novacionesAnio = DB.creditos.filter(c=>enAnio(c.fechaNovacion, A)).length;
+  const fechaUltPago = c=>(c.tabla||[]).reduce((m,t)=>(t.fechaPago && t.fechaPago>m)?t.fechaPago:m, '');
+  const canceladosAnio = DB.creditos.filter(c=>c.estado==='cancelado' && enAnio(fechaUltPago(c), A)).length;
+  const solicitudesAnio = DB.creditos.filter(c=>enAnio(c.fechaSolicitud, A));
+  const rechazadosAnio = solicitudesAnio.filter(c=>c.estado==='rechazado').length;
+  const pendientes = DB.creditos.filter(c=>c.estado==='solicitado').length;
+
+  // ----- Cartera (corte: hoy) -----
+  const semaforo = {verde:{n:0,saldo:0}, amarillo:{n:0,saldo:0}, rojo:{n:0,saldo:0}};
+  desemb.forEach(c=>{ const k = creditoSemaforo(c); if(semaforo[k]){ semaforo[k].n++; semaforo[k].saldo = round2(semaforo[k].saldo + saldoCredito(c)); } });
+  const cartera = { vigente: carteraVigente(), vencida: carteraVencida() };
+  cartera.total = round2(cartera.vigente + cartera.vencida);
+  const morosidad = cartera.total>0 ? cartera.vencida/cartera.total*100 : 0;
+  const topMora = desemb.filter(c=>creditoEnMora(c)).map(c=>({socio:socioById(c.solicitanteId), saldo:saldoCredito(c), mora:totalMoraCredito(c)})).sort((a,b)=>b.saldo-a.saldo).slice(0,5);
+
+  // ----- Mora -----
+  const historial = []; DB.creditos.forEach(c=>(c.historialMora||[]).forEach(h=>historial.push(h)));
+  const moraCobradaAnio = sumar(historial.filter(h=>h.tipo==='cobro' && enAnio(h.fecha, A)).map(h=>h.monto));
+  const moraCondonadaAnio = sumar(historial.filter(h=>h.tipo==='condonacion' && enAnio(h.fecha, A)).map(h=>h.monto));
+  const moraMes = serieMensual(historial.filter(h=>h.tipo==='cobro'), h=>h.fecha, h=>h.monto, A);
+  const moraPendiente = carteraMorasAcumuladas();
+
+  // ----- Multas y participación -----
+  const multasPagadas = DB.multas.filter(m=>m.pagada);
+  const multasCobradasAnio = sumar(multasPagadas.filter(m=>enAnio(m.fechaPago, A)).map(m=>m.monto));
+  const multasMes = serieMensual(multasPagadas, m=>m.fechaPago, m=>m.monto, A);
+  const multasReg = DB.multas.filter(m=>enAnio(m.fecha, A));
+  const multasPorTipo = Object.keys(TIPO_MULTA_INFO).map(k=>({tipo:k, label:TIPO_MULTA_INFO[k].label, n:multasReg.filter(m=>m.tipo===k).length, monto:sumar(multasReg.filter(m=>m.tipo===k).map(m=>m.monto))}));
+  const justificadas = multasReg.filter(m=>m.justificada).length;
+  const multasPendientes = totalMultasPendientes();
+
+  // ----- Ahorros -----
+  const movA = DB.movAhorros.filter(m=>enAnio(m.fecha, A));
+  const depositosAnio = sumar(movA.filter(m=>m.tipo==='deposito').map(m=>m.monto));
+  const retirosAnio = sumar(movA.filter(m=>m.tipo==='retiro').map(m=>m.monto));
+  const interesAhorroAnio = sumar(movA.filter(m=>m.tipo==='interes').map(m=>m.monto));
+  const depositosMes = serieMensual(DB.movAhorros.filter(m=>m.tipo==='deposito'), m=>m.fecha, m=>m.monto, A);
+  const retirosMes = serieMensual(DB.movAhorros.filter(m=>m.tipo==='retiro'), m=>m.fecha, m=>m.monto, A);
+  const interesAhorroMes = serieMensual(DB.movAhorros.filter(m=>m.tipo==='interes'), m=>m.fecha, m=>m.monto, A);
+  const ahorros = { voluntario: totalAhorroPorTipo('voluntario'), plazo: totalAhorroPorTipo('plazo'), total: round2(totalAhorros()) };
+  const cuentasActivas = DB.ahorros.filter(a=>a.estado!=='cerrado').length;
+  const ahorristas = new Set(DB.ahorros.filter(a=>a.estado!=='cerrado').map(a=>a.socioId)).size;
+
+  // ----- Fondos -----
+  const fm = (DB.fondosMovimientos||[]).filter(m=>enAnio(m.fecha, A));
+  const esReversion = m=>/^Reversi/i.test(m.concepto||'');
+  const statFondo = k=>({
+    saldo: round2(DB.fondos[k]||0),
+    ingresos: sumar(fm.filter(m=>m.fondo===k && m.tipo==='ingreso').map(m=>m.monto)),
+    egresos: sumar(fm.filter(m=>m.fondo===k && m.tipo==='egreso' && !esReversion(m)).map(m=>m.monto))
+  });
+  const fondos = { social:statFondo('social'), desgravamen:statFondo('desgravamen'), riesgos:statFondo('riesgos') };
+  const apoyosSociales = fm.filter(m=>m.fondo==='social' && m.tipo==='egreso' && !esReversion(m)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const egresosFondosMes = serieMensual(fm.filter(m=>m.tipo==='egreso' && !esReversion(m)), m=>m.fecha, m=>m.monto, A);
+
+  // ----- Capital -----
+  const todosAportes = DB.socios.flatMap(so=>so.aportes||[]);
+  const aportesSociosMes = serieMensual(todosAportes, a=>a.fecha, a=>a.monto, A);
+  const aportesSociosAnio = sumar(aportesSociosMes);
+  const todosCom = (DB.capitalComunitario||[]).flatMap(t=>t.aportes||[]);
+  const aportesComMes = serieMensual(todosCom, a=>a.fecha, a=>a.monto, A);
+  const aportesComAnio = sumar(aportesComMes);
+  const comPorTipo = (DB.capitalComunitario||[]).map(t=>({nombre:t.nombre, total:totalTipoComunitario(t), anio:sumar((t.aportes||[]).filter(a=>enAnio(a.fecha,A)).map(a=>a.monto))}));
+  const capitalSocial = totalCapitalSocial();
+  const capitalComunitario = totalCapitalComunitario();
+
+  // ----- Socios (parte social) -----
+  const activos = sociosActivos();
+  const separados = DB.socios.filter(so=>so.estado!=='activo').length;
+  const nuevos = DB.socios.filter(so=>enAnio(so.fechaIngreso, A));
+  const nuevosMes = serieMensual(nuevos, so=>so.fechaIngreso, ()=>1, A);
+  const completaron = activos.filter(so=>totalAportesSocio(so) >= DB.config.aporteMaximo - 0.001).length;
+  const conCreditoVigente = new Set(desemb.map(c=>c.solicitanteId)).size;
+  const beneficiadosAnio = new Set(colocados.map(c=>c.solicitanteId)).size;
+  const deComunidad = activos.filter(so=>so.esComunidad).length;
+  const externos = activos.length - deComunidad;
+  const enRiesgo = activos.filter(so=>inasistenciasInjustificadasAnio(so.id, A)>=3).length;
+  const promedioAporte = activos.length ? round2(sumar(activos.map(so=>totalAportesSocio(so)))/activos.length) : 0;
+
+  // ----- Resultados del año -----
+  const ingresos = { interes: cobradoInteres, mora: moraCobradaAnio, multas: multasCobradasAnio };
+  const totalIngresos = sumar([ingresos.interes, ingresos.mora, ingresos.multas]);
+  const egresos = { interesAhorro: interesAhorroAnio, fondoSocial: fondos.social.egresos, fondoRiesgos: fondos.riesgos.egresos, fondoDesgravamen: fondos.desgravamen.egresos };
+  const totalEgresos = sumar([egresos.interesAhorro, egresos.fondoSocial, egresos.fondoRiesgos, egresos.fondoDesgravamen]);
+  const excedente = round2(totalIngresos - totalEgresos);
+  const ingresosMes = sumaSeries(interesMes, moraMes, multasMes);
+  const egresosMes = sumaSeries(interesAhorroMes, egresosFondosMes);
+
+  // ----- Estructura de recursos y saldo -----
+  const saldo = calcularSaldoDisponible();
+  const recursos = [
+    {label:'Capital social de socios', valor:capitalSocial, color:'#2C6B49'},
+    {label:'Capital social comunitario', valor:capitalComunitario, color:'#5BA37A'},
+    {label:'Ahorro a plazo fijo', valor:ahorros.plazo, color:'#3B7EA1'},
+    {label:'Ahorro voluntario', valor:ahorros.voluntario, color:'#8FB8CE'},
+    {label:'Fondo social', valor:fondos.social.saldo, color:'#D4A24C'},
+    {label:'Fondo de desgravamen', valor:fondos.desgravamen.saldo, color:'#E8C583'},
+    {label:'Fondo de gestión de riesgos', valor:fondos.riesgos.saldo, color:'#B5473A'},
+  ].map(r=>Object.assign(r,{valor:Math.max(0, round2(r.valor))}));
+
+  // ----- Indicadores con semáforo -----
+  const pctInteres = interesProgramado>0 ? cobradoInteres/interesProgramado*100 : null;
+  const pctAporte = activos.length ? completaron/activos.length*100 : null;
+  const pctProd = colocados.length ? productivos.length/colocados.length*100 : null;
+  const semI = (v,verde,amar)=> v===null ? 'gris' : (v>=verde?'verde':(v>=amar?'amarillo':'rojo'));
+  const indicadores = [
+    {nombre:'Morosidad de la cartera', valor: cartera.total>0 ? morosidad.toFixed(1)+'%' : 'Sin cartera', color: cartera.total>0 ? (morosidad<5?'verde':(morosidad<=10?'amarillo':'rojo')) : 'gris', meta:'Referencia: menos de 5%'},
+    {nombre:'Cobro de interés del año', valor: pctInteres===null ? 'Sin interés programado' : pctInteres.toFixed(0)+'%', color: semI(pctInteres,90,70), meta:'Referencia: 90% o más del interés programado'},
+    {nombre:'Socios con aporte completo', valor: pctAporte===null ? 'Sin socios' : `${completaron} de ${activos.length} (${pctAporte.toFixed(0)}%)`, color: semI(pctAporte,80,50), meta:'Referencia: 80% o más'},
+    {nombre:'Créditos para producción', valor: pctProd===null ? 'Sin créditos en el año' : pctProd.toFixed(0)+'%', color: semI(pctProd,60,40), meta:'Referencia: 60% o más'},
+  ];
+
+  return { anio:Number(anio), A, colocados, colocadoBruto, colocadoNeto, colocadoMes, cobradoCapital, cobradoInteres, cobradoTotal, recuperadoMes, interesMes, interesProgramado,
+    promedioMonto, promedioPlazo, productivos, consumo, aSocios, aExternos, porNovacion, novacionesAnio, canceladosAnio, solicitudesAnio, rechazadosAnio, pendientes,
+    semaforo, cartera, morosidad, topMora, moraCobradaAnio, moraCondonadaAnio, moraMes, moraPendiente,
+    multasCobradasAnio, multasMes, multasPorTipo, justificadas, multasPendientes,
+    depositosAnio, retirosAnio, interesAhorroAnio, depositosMes, retirosMes, ahorros, cuentasActivas, ahorristas,
+    fondos, apoyosSociales, aportesSociosMes, aportesSociosAnio, aportesComMes, aportesComAnio, comPorTipo, capitalSocial, capitalComunitario,
+    activos:activos.length, separados, nuevos, nuevosMes, completaron, conCreditoVigente, beneficiadosAnio, deComunidad, externos, enRiesgo, promedioAporte,
+    ingresos, totalIngresos, egresos, totalEgresos, excedente, ingresosMes, egresosMes, saldo, recursos, indicadores };
+}
+
+/* ---------- Gráficos SVG (sin librerías: funcionan sin internet) ---------- */
+function niceCeil(v){ if(v<=0) return 1; const e = Math.pow(10, Math.floor(Math.log10(v))); const f = v/e; return (f<=1?1:(f<=2?2:(f<=5?5:10)))*e; }
+function fmtCorto(n){ const a = Math.abs(n); if(a>=1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(a>=1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'')+'k'; return String(Math.round(n*100)/100); }
+function svgBarras(series, opts){
+  opts = opts||{};
+  const labels = opts.labels || MESES_CORTOS;
+  const W=640, H=230, pl=44, pr=8, pt=12, pb=26, iw=W-pl-pr, ih=H-pt-pb;
+  const max = niceCeil(Math.max(1, ...series.flatMap(s=>s.valores)));
+  const n = labels.length, gw = iw/n, bw = Math.min(20, (gw*0.78)/series.length);
+  let g = '';
+  for(let i=0;i<=4;i++){
+    const y = pt + ih - ih*i/4;
+    g += `<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="#E3DCC8" stroke-width="1"/><text x="${pl-6}" y="${y+3}" text-anchor="end" font-size="10" fill="#5A6B5E">${fmtCorto(max*i/4)}</text>`;
+  }
+  labels.forEach((lb,i)=>{
+    const gx = pl + gw*i + gw/2 - (bw*series.length)/2;
+    series.forEach((s,j)=>{
+      const v = s.valores[i]||0; const h = ih*(v/max); const x = gx + bw*j; const y = pt + ih - h;
+      g += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(bw-1,1).toFixed(1)}" height="${(v>0?Math.max(h,1):0).toFixed(1)}" rx="2" fill="${s.color}"><title>${lb} · ${esc(s.nombre)}: ${opts.moneda===false?v:fmt(v)}</title></rect>`;
+    });
+    g += `<text x="${(pl+gw*i+gw/2).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="10" fill="#5A6B5E">${lb}</text>`;
+  });
+  const leyenda = `<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-bottom:6px">${series.map(s=>`<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${s.color};margin-right:5px"></span>${esc(s.nombre)}</span>`).join('')}</div>`;
+  return `<div>${leyenda}<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="${esc(opts.titulo||'Gráfico')}">${g}</svg></div>`;
+}
+function svgDonut(items){
+  const tot = items.reduce((a,i)=>a+i.valor,0);
+  if(tot<=0) return '<p class="empty" style="padding:20px">Todavía no hay datos para este gráfico.</p>';
+  let offset = 25;
+  const circulos = items.filter(i=>i.valor>0).map(i=>{
+    const pct = i.valor/tot*100;
+    const c = `<circle cx="21" cy="21" r="15.9155" fill="none" stroke="${i.color}" stroke-width="6" stroke-dasharray="${pct.toFixed(2)} ${(100-pct).toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"><title>${esc(i.label)}: ${fmt(i.valor)} (${pct.toFixed(1)}%)</title></circle>`;
+    offset -= pct; return c;
+  }).join('');
+  const filas = items.map(i=>`<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:2px 0"><span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${i.color};margin-right:6px"></span>${esc(i.label)}</span><span><strong>${fmt(i.valor)}</strong> <span style="color:var(--tinta-suave)">(${(i.valor/tot*100).toFixed(0)}%)</span></span></div>`).join('');
+  return `<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><svg viewBox="0 0 42 42" style="width:150px;height:150px;flex-shrink:0" role="img" aria-label="Gráfico circular">${circulos}</svg><div style="flex:1;min-width:200px">${filas}</div></div>`;
+}
+
+/* ---------- Piezas de la pantalla ---------- */
+function balKpi(label, valor, sub, warn){ return `<div class="stat-card ${warn?'warn':''}"><div class="lbl">${label}</div><div class="val" style="font-size:22px">${valor}</div>${sub?`<div class="sub">${sub}</div>`:''}</div>`; }
+function balFila(label, valor, fuerte){ return `<tr><td>${label}</td><td style="text-align:right">${fuerte?`<strong>${valor}</strong>`:valor}</td></tr>`; }
+function balResumenEjecutivo(m){
+  const L = [];
+  L.push(`En ${m.anio} se otorgaron <strong>${m.colocados.length}</strong> crédito(s) por <strong>${fmt(m.colocadoBruto)}</strong>${m.colocados.length?` (promedio ${fmt(m.promedioMonto)} a ${m.promedioPlazo} meses)`:''}.`);
+  L.push(`Se recuperaron <strong>${fmt(m.cobradoTotal)}</strong> en cuotas, de los cuales <strong>${fmt(m.cobradoInteres)}</strong> son intereses.`);
+  L.push(`El excedente del año (ingresos menos egresos) es de <strong>${fmt(m.excedente)}</strong>.`);
+  L.push(m.cartera.total>0 ? `La morosidad actual es de <strong>${m.morosidad.toFixed(1)}%</strong> de la cartera, con <strong>${m.semaforo.rojo.n}</strong> crédito(s) vencido(s) y <strong>${m.semaforo.amarillo.n}</strong> por vencer.` : 'Todavía no hay cartera de créditos vigente.');
+  L.push(`El saldo disponible para nuevos créditos es de <strong>${fmt(m.saldo.total)}</strong>; el ahorro voluntario (${fmt(m.ahorros.voluntario)}) no se cuenta porque se devuelve a sus dueños.`);
+  L.push(`Hoy la caja tiene <strong>${m.activos}</strong> socio(s) activo(s); en ${m.anio} ingresaron <strong>${m.nuevos.length}</strong>.`);
+  if(m.fondos.social.egresos>0) L.push(`El Fondo Social apoyó a la comunidad con <strong>${fmt(m.fondos.social.egresos)}</strong> en ${m.apoyosSociales.length} ocasión(es).`);
+  if(m.moraCondonadaAnio>0) L.push(`La directiva condonó <strong>${fmt(m.moraCondonadaAnio)}</strong> de mora.`);
+  return L;
+}
+function balIndicadores(m){
+  return `<div class="grid grid-4">${m.indicadores.map(i=>`<div class="stat-card"><div class="lbl">${semaforoDot(i.color)}${i.nombre}</div><div class="val" style="font-size:19px">${i.valor}</div><div class="sub">${i.meta}</div></div>`).join('')}</div>`;
+}
+function balTablaResultados(m){
+  return `<div class="table-wrap"><table><tbody>
+    <tr><th colspan="2">INGRESOS DEL AÑO</th></tr>
+    ${balFila('Intereses cobrados en créditos', fmt(m.ingresos.interes))}
+    ${balFila('Mora cobrada', fmt(m.ingresos.mora))}
+    ${balFila('Multas cobradas', fmt(m.ingresos.multas))}
+    ${balFila('Total ingresos', fmt(m.totalIngresos), true)}
+    <tr><th colspan="2">EGRESOS DEL AÑO</th></tr>
+    ${balFila('Intereses acreditados a ahorristas', fmt(m.egresos.interesAhorro))}
+    ${balFila('Egresos del Fondo Social (apoyos)', fmt(m.egresos.fondoSocial))}
+    ${balFila('Egresos del Fondo de Gestión de Riesgos', fmt(m.egresos.fondoRiesgos))}
+    ${balFila('Egresos del Fondo de Desgravamen', fmt(m.egresos.fondoDesgravamen))}
+    ${balFila('Total egresos', fmt(m.totalEgresos), true)}
+    <tr><th>EXCEDENTE DEL AÑO</th><th style="text-align:right;${m.excedente<0?'color:var(--rojo)':''}">${fmt(m.excedente)}</th></tr>
+  </tbody></table></div>`;
+}
+
+function renderBalance(main){
+  const anios = aniosDisponibles();
+  if(!window._balanceAnio || !anios.includes(window._balanceAnio)){
+    const actual = new Date().getFullYear();
+    window._balanceAnio = anios.includes(actual) ? actual : anios[0];
+  }
+  const m = calcularBalanceAnual(window._balanceAnio);
+  const hoy = new Date();
+  const hora = hoy.toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit'});
+  const sec = (t)=>`<h3 style="margin:26px 0 10px">${t}</h3>`;
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h2>Dashboard Financiero y Social</h2><p class="desc">Balance anual de la ${esc(DB.config.nombreCaja)}. Se actualiza solo con cada dato que se ingresa.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:12.5px;font-weight:600">Año
+          <select style="width:auto;display:inline-block;margin-left:6px" onchange="window._balanceAnio=Number(this.value);renderBalance(document.getElementById('mainContent'))">${anios.map(a=>`<option value="${a}" ${a===m.anio?'selected':''}>${a}</option>`).join('')}</select>
+        </label>
+        <button class="btn btn-gold" onclick="genInformeAnual(${m.anio})">📄 Informe anual (imprimir / PDF)</button>
+      </div>
+    </div>
+    <div class="helptext">📅 Año analizado: <strong>${m.anio}</strong> (ingresos, egresos y movimientos de ese año). La situación de cartera, ahorros y fondos es la de <strong>hoy, ${fmtDate(todayISO())}, ${hora}</strong>. Datos actualizados por última vez: ${DB.ultimaModificacion?new Date(DB.ultimaModificacion).toLocaleString('es-EC'):'—'}.</div>
+
+    <div class="card" style="margin-bottom:18px">
+      <h3 style="margin-top:0">Resumen del año ${m.anio}</h3>
+      <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.7">${balResumenEjecutivo(m).map(x=>`<li>${x}</li>`).join('')}</ul>
+    </div>
+
+    <div class="grid grid-4" style="margin-bottom:12px">
+      ${balKpi('💵 Saldo disponible para créditos', fmt(m.saldo.total), 'Sin ahorro voluntario', m.saldo.total<0)}
+      ${balKpi('Capital total', fmt(m.capitalSocial+m.capitalComunitario), `Socios ${fmt(m.capitalSocial)} · Comunitario ${fmt(m.capitalComunitario)}`)}
+      ${balKpi('Cartera de créditos', fmt(m.cartera.total), `Vigente ${fmt(m.cartera.vigente)} · Vencida ${fmt(m.cartera.vencida)}`, m.cartera.vencida>0)}
+      ${balKpi('Ahorros captados', fmt(m.ahorros.total), `Voluntario ${fmt(m.ahorros.voluntario)} · Plazo ${fmt(m.ahorros.plazo)}`)}
+    </div>
+    <div class="grid grid-4" style="margin-bottom:18px">
+      ${balKpi(`Excedente ${m.anio}`, fmt(m.excedente), `Ingresos ${fmt(m.totalIngresos)} · Egresos ${fmt(m.totalEgresos)}`, m.excedente<0)}
+      ${balKpi(`Créditos otorgados ${m.anio}`, m.colocados.length, fmt(m.colocadoBruto))}
+      ${balKpi('Mora pendiente de cobro', fmt(m.moraPendiente), `Cobrada ${m.anio}: ${fmt(m.moraCobradaAnio)}`, m.moraPendiente>0)}
+      ${balKpi('Socios activos', m.activos, `Nuevos en ${m.anio}: ${m.nuevos.length}`)}
+    </div>
+
+    ${sec('Indicadores de salud de la caja')}
+    ${balIndicadores(m)}
+    <p class="hint">Las referencias son orientativas; la Asamblea puede definir otras metas.</p>
+
+    ${sec(`Estado de resultados ${m.anio}`)}
+    <div class="grid grid-2" style="align-items:start">
+      <div class="card">${balTablaResultados(m)}</div>
+      <div class="card"><h4 style="margin:0 0 8px">Ingresos y egresos por mes</h4>${svgBarras([{nombre:'Ingresos', color:'#2C6B49', valores:m.ingresosMes},{nombre:'Egresos', color:'#B5473A', valores:m.egresosMes}], {titulo:'Ingresos y egresos por mes'})}</div>
+    </div>
+
+    ${sec('Créditos')}
+    <div class="grid grid-2" style="align-items:start">
+      <div class="card"><h4 style="margin:0 0 8px">Colocación y recuperación por mes</h4>${svgBarras([{nombre:'Créditos entregados', color:'#D4A24C', valores:m.colocadoMes},{nombre:'Cuotas recuperadas (capital + interés)', color:'#3B7EA1', valores:m.recuperadoMes}], {titulo:'Colocación y recuperación'})}</div>
+      <div class="card"><h4 style="margin:0 0 8px">Estado de la cartera (semáforo)</h4>${svgDonut([{label:`Al día (${m.semaforo.verde.n})`, valor:m.semaforo.verde.saldo, color:'#5BA37A'},{label:`Por vencer (${m.semaforo.amarillo.n})`, valor:m.semaforo.amarillo.saldo, color:'#D4A24C'},{label:`Vencidos (${m.semaforo.rojo.n})`, valor:m.semaforo.rojo.saldo, color:'#B5473A'}])}</div>
+    </div>
+    <div class="grid grid-2" style="margin-top:16px;align-items:start">
+      <div class="card"><div class="table-wrap"><table><tbody>
+        ${balFila(`Créditos entregados en ${m.anio}`, m.colocados.length)}
+        ${balFila('Monto entregado (bruto)', fmt(m.colocadoBruto))}
+        ${balFila('Monto neto recibido por socios (sin desgravamen)', fmt(m.colocadoNeto))}
+        ${balFila('Monto promedio / plazo promedio', `${fmt(m.promedioMonto)} / ${m.promedioPlazo} meses`)}
+        ${balFila('Para producción / para consumo', `${m.productivos.length} / ${m.consumo.length}`)}
+        ${balFila('A socios de la comunidad / a clientes externos', `${m.aSocios.length} / ${m.aExternos.length}`)}
+        ${balFila('Créditos por novación (Art. 10)', m.porNovacion)}
+        ${balFila('Créditos cancelados en el año', m.canceladosAnio)}
+        ${balFila('Solicitudes del año / rechazadas', `${m.solicitudesAnio.length} / ${m.rechazadosAnio}`)}
+        ${balFila('Solicitudes pendientes de aprobar', m.pendientes)}
+      </tbody></table></div></div>
+      <div class="card"><div class="table-wrap"><table><tbody>
+        ${balFila('Capital recuperado en el año', fmt(m.cobradoCapital))}
+        ${balFila('Interés cobrado en el año', fmt(m.cobradoInteres))}
+        ${balFila('Interés programado para el año', fmt(m.interesProgramado))}
+        ${balFila('Mora cobrada en el año', fmt(m.moraCobradaAnio))}
+        ${balFila('Mora condonada en el año', fmt(m.moraCondonadaAnio))}
+        ${balFila('Mora pendiente de cobro (hoy)', fmt(m.moraPendiente), true)}
+        ${balFila('Cartera vigente (al día)', fmt(m.cartera.vigente))}
+        ${balFila('Cartera vencida', fmt(m.cartera.vencida))}
+        ${balFila('Índice de morosidad', m.cartera.total>0 ? m.morosidad.toFixed(1)+'%' : '—', true)}
+      </tbody></table></div></div>
+    </div>
+    <div class="grid grid-2" style="margin-top:16px;align-items:start">
+      <div class="card"><h4 style="margin:0 0 8px">🏅 Socios con mayor interés generado</h4>${renderRankingInteres()}</div>
+      <div class="card"><h4 style="margin:0 0 8px">⚠️ Mayores créditos en mora</h4>${m.topMora.length?`<div class="table-wrap"><table><thead><tr><th>Socio</th><th>Saldo</th><th>Mora</th></tr></thead><tbody>${m.topMora.map(x=>`<tr><td>${esc(x.socio?x.socio.nombres:'—')}</td><td>${fmt(x.saldo)}</td><td style="color:var(--rojo);font-weight:700">${fmt(x.mora)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">🌤️ No hay créditos en mora.</p>'}</div>
+    </div>
+
+    ${sec('Capital y ahorros')}
+    <div class="grid grid-2" style="align-items:start">
+      <div class="card"><h4 style="margin:0 0 8px">Aportes de capital por mes</h4>${svgBarras([{nombre:'Capital de socios', color:'#2C6B49', valores:m.aportesSociosMes},{nombre:'Capital comunitario', color:'#D4A24C', valores:m.aportesComMes}], {titulo:'Aportes de capital por mes'})}
+        <p class="hint">Aportado en ${m.anio}: socios ${fmt(m.aportesSociosAnio)} · comunitario ${fmt(m.aportesComAnio)}</p></div>
+      <div class="card"><h4 style="margin:0 0 8px">Depósitos y retiros de ahorro por mes</h4>${svgBarras([{nombre:'Depósitos', color:'#3B7EA1', valores:m.depositosMes},{nombre:'Retiros', color:'#B5473A', valores:m.retirosMes}], {titulo:'Depósitos y retiros por mes'})}
+        <p class="hint">${m.anio}: depósitos ${fmt(m.depositosAnio)} · retiros ${fmt(m.retirosAnio)} · interés acreditado ${fmt(m.interesAhorroAnio)}</p></div>
+    </div>
+    <div class="grid grid-2" style="margin-top:16px;align-items:start">
+      <div class="card"><h4 style="margin:0 0 8px">Capital comunitario por tipo</h4><div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Total</th><th>Aportado en ${m.anio}</th></tr></thead><tbody>
+        ${m.comPorTipo.map(t=>`<tr><td>${esc(t.nombre)}</td><td>${fmt(t.total)}</td><td>${fmt(t.anio)}</td></tr>`).join('') || '<tr><td colspan="3" style="color:var(--tinta-suave)">Sin tipos registrados</td></tr>'}
+        <tr><td><strong>Total</strong></td><td><strong>${fmt(m.capitalComunitario)}</strong></td><td><strong>${fmt(m.aportesComAnio)}</strong></td></tr>
+      </tbody></table></div></div>
+      <div class="card"><h4 style="margin:0 0 8px">¿De dónde vienen los recursos de la caja?</h4>${svgDonut(m.recursos)}</div>
+    </div>
+
+    ${sec('Fondos')}
+    <div class="card"><div class="table-wrap"><table><thead><tr><th>Fondo</th><th>Ingresos ${m.anio}</th><th>Egresos ${m.anio}</th><th>Saldo hoy</th></tr></thead><tbody>
+      <tr><td>Fondo Social</td><td>${fmt(m.fondos.social.ingresos)}</td><td>${fmt(m.fondos.social.egresos)}</td><td><strong>${fmt(m.fondos.social.saldo)}</strong></td></tr>
+      <tr><td>Fondo de Desgravamen</td><td>${fmt(m.fondos.desgravamen.ingresos)}</td><td>${fmt(m.fondos.desgravamen.egresos)}</td><td><strong>${fmt(m.fondos.desgravamen.saldo)}</strong></td></tr>
+      <tr><td>Fondo de Gestión de Riesgos</td><td>${fmt(m.fondos.riesgos.ingresos)}</td><td>${fmt(m.fondos.riesgos.egresos)}</td><td><strong>${fmt(m.fondos.riesgos.saldo)}</strong></td></tr>
+    </tbody></table></div></div>
+
+    ${sec('Parte social: participación y apoyo a la comunidad')}
+    <div class="grid grid-4" style="margin-bottom:16px">
+      ${balKpi('Socios activos', m.activos, `${m.deComunidad} de la comunidad · ${m.externos} externos`)}
+      ${balKpi(`Ingresos de socios ${m.anio}`, m.nuevos.length, `${m.separados} socio(s) separado(s) en total`)}
+      ${balKpi('Socios con crédito vigente', m.conCreditoVigente, m.activos?`${Math.round(m.conCreditoVigente/m.activos*100)}% de los socios`:'')}
+      ${balKpi(`Socios beneficiados ${m.anio}`, m.beneficiadosAnio, 'Recibieron al menos un crédito en el año')}
+    </div>
+    <div class="grid grid-4" style="margin-bottom:16px">
+      ${balKpi('Con aporte completo', `${m.completaron} de ${m.activos}`, `Meta ${fmt(DB.config.aporteMaximo)} por socio`)}
+      ${balKpi('Aporte promedio por socio', fmt(m.promedioAporte))}
+      ${balKpi('Con cuenta de ahorro', m.ahorristas, `${m.cuentasActivas} cuenta(s) activa(s)`)}
+      ${balKpi('Socios en riesgo (Art. 8d)', m.enRiesgo, '3 o más faltas injustificadas en el año', m.enRiesgo>0)}
+    </div>
+    <div class="grid grid-2" style="align-items:start">
+      <div class="card"><h4 style="margin:0 0 8px">Ingreso de nuevos socios por mes</h4>${svgBarras([{nombre:'Nuevos socios', color:'#2C6B49', valores:m.nuevosMes}], {titulo:'Nuevos socios por mes', moneda:false})}</div>
+      <div class="card"><h4 style="margin:0 0 8px">Asambleas: multas y faltas en ${m.anio}</h4><div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Casos</th><th>Monto</th></tr></thead><tbody>
+        ${m.multasPorTipo.map(x=>`<tr><td>${esc(x.label)}</td><td>${x.n}</td><td>${fmt(x.monto)}</td></tr>`).join('')}
+        <tr><td>Faltas justificadas (sin multa)</td><td>${m.justificadas}</td><td>—</td></tr>
+      </tbody></table></div>
+      <p class="hint">Multas cobradas en ${m.anio}: ${fmt(m.multasCobradasAnio)} · Pendientes de cobro: ${fmt(m.multasPendientes)}</p></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h4 style="margin:0 0 8px">💚 Apoyo a la comunidad con el Fondo Social en ${m.anio}</h4>
+      ${m.apoyosSociales.length?`<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th></tr></thead><tbody>${m.apoyosSociales.map(x=>`<tr><td>${fmtDate(x.fecha)}</td><td>${esc(x.concepto||'—')}</td><td>${fmt(x.monto)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">Todavía no se han registrado egresos del Fondo Social en este año. Se registran en la pestaña "Fondos".</p>'}
+    </div>
+
+    <p class="hint" style="margin-top:20px">Notas: los cobros de cuotas se cuentan en el mes en que se registraron en la app. Los créditos históricos ingresados con "cuotas ya pagadas" no tienen fecha de cobro, por eso no aparecen en los movimientos del año. Los egresos de fondos no incluyen las reversiones por eliminar registros.</p>
+  `;
+}
+
+/* ---------- Informe anual imprimible ---------- */
+function genInformeAnual(anio){
+  const m = calcularBalanceAnual(anio);
+  const tabla = (filas)=>`<table style="width:100%"><tbody>${filas.map(f=>f[2]?`<tr><th colspan="2">${f[0]}</th></tr>`:`<tr><td style="width:62%">${f[0]}</td><td style="text-align:right">${f[1]}</td></tr>`).join('')}</tbody></table>`;
+  printDoc(`<div class="doc-page compacto">
+    ${membreteHTML()}
+    <h2>${esc(DB.config.nombreCaja)}</h2>
+    <div class="doc-sub">INFORME FINANCIERO Y SOCIAL — BALANCE ANUAL ${m.anio}<br>Emitido el ${fechaLarga(todayISO())}</div>
+    <p><strong>1. Resumen del año</strong></p>
+    <ul style="margin:4px 0 8px;padding-left:18px">${balResumenEjecutivo(m).map(x=>`<li>${x}</li>`).join('')}</ul>
+    <p><strong>2. Estado de resultados ${m.anio}</strong></p>
+    ${tabla([
+      ['INGRESOS','',true],
+      ['Intereses cobrados en créditos', fmt(m.ingresos.interes)],['Mora cobrada', fmt(m.ingresos.mora)],['Multas cobradas', fmt(m.ingresos.multas)],['Total ingresos', `<strong>${fmt(m.totalIngresos)}</strong>`],
+      ['EGRESOS','',true],
+      ['Intereses acreditados a ahorristas', fmt(m.egresos.interesAhorro)],['Egresos del Fondo Social', fmt(m.egresos.fondoSocial)],['Egresos del Fondo de Gestión de Riesgos', fmt(m.egresos.fondoRiesgos)],['Egresos del Fondo de Desgravamen', fmt(m.egresos.fondoDesgravamen)],['Total egresos', `<strong>${fmt(m.totalEgresos)}</strong>`],
+      ['EXCEDENTE DEL AÑO', `<strong>${fmt(m.excedente)}</strong>`],
+    ])}
+    ${svgBarras([{nombre:'Ingresos', color:'#2C6B49', valores:m.ingresosMes},{nombre:'Egresos', color:'#B5473A', valores:m.egresosMes}], {titulo:'Ingresos y egresos por mes'})}
+    <p><strong>3. Situación a la fecha (${fmtDate(todayISO())})</strong></p>
+    ${tabla([
+      ['Capital social de los socios', fmt(m.capitalSocial)],['Capital social comunitario', fmt(m.capitalComunitario)],
+      ['Ahorro voluntario', fmt(m.ahorros.voluntario)],['Ahorro a plazo fijo', fmt(m.ahorros.plazo)],
+      ['Fondo Social / Desgravamen / Gestión de Riesgos', `${fmt(m.fondos.social.saldo)} / ${fmt(m.fondos.desgravamen.saldo)} / ${fmt(m.fondos.riesgos.saldo)}`],
+      ['Cartera de créditos vigente (al día)', fmt(m.cartera.vigente)],['Cartera de créditos vencida', fmt(m.cartera.vencida)],
+      ['Índice de morosidad', m.cartera.total>0 ? m.morosidad.toFixed(1)+'%' : '—'],['Mora pendiente de cobro', fmt(m.moraPendiente)],
+      ['SALDO DISPONIBLE PARA CRÉDITOS (sin ahorro voluntario)', `<strong>${fmt(m.saldo.total)}</strong>`],
+    ])}
+    <p><strong>4. Gestión de créditos ${m.anio}</strong></p>
+    ${tabla([
+      ['Créditos entregados / monto', `${m.colocados.length} / ${fmt(m.colocadoBruto)}`],['Para producción / para consumo', `${m.productivos.length} / ${m.consumo.length}`],
+      ['Capital recuperado', fmt(m.cobradoCapital)],['Interés cobrado / programado', `${fmt(m.cobradoInteres)} / ${fmt(m.interesProgramado)}`],
+      ['Mora cobrada / condonada', `${fmt(m.moraCobradaAnio)} / ${fmt(m.moraCondonadaAnio)}`],['Créditos por novación / cancelados', `${m.porNovacion} / ${m.canceladosAnio}`],
+    ])}
+    ${svgBarras([{nombre:'Créditos entregados', color:'#D4A24C', valores:m.colocadoMes},{nombre:'Cuotas recuperadas', color:'#3B7EA1', valores:m.recuperadoMes}], {titulo:'Colocación y recuperación'})}
+    <p><strong>5. Parte social ${m.anio}</strong></p>
+    ${tabla([
+      ['Socios activos (comunidad / externos)', `${m.activos} (${m.deComunidad} / ${m.externos})`],['Socios nuevos en el año', m.nuevos.length],
+      ['Socios con aporte completo', `${m.completaron} de ${m.activos}`],['Socios beneficiados con crédito en el año', m.beneficiadosAnio],
+      ['Apoyo del Fondo Social a la comunidad', `${fmt(m.fondos.social.egresos)} en ${m.apoyosSociales.length} ocasión(es)`],
+      ['Multas cobradas en asambleas', fmt(m.multasCobradasAnio)],
+    ])}
+    <div class="doc-signs"><div>${esc(DB.config.nombreGerente||'')}<br>Gerente</div><div>${esc(DB.config.nombreTesorero||'')}<br>Tesorero/a</div><div>${esc(DB.config.nombreSecretario||'')}<br>Secretario/a</div></div>
+  </div>`);
+}
+function refrescarBalanceSiVisible(){
+  if(typeof currentTab==='undefined' || currentTab!=='balance') return;
+  clearTimeout(window._balTimer);
+  window._balTimer = setTimeout(()=>{
+    if(currentTab!=='balance' || document.querySelector('.modal-bg.show')) return;
+    const main = document.getElementById('mainContent'); if(!main) return;
+    const y = window.scrollY; renderBalance(main); window.scrollTo(0, y);
+  }, 250);
+}
+
 /* ================= DOCUMENTOS (índice) ================= */
 function renderDocumentos(main){
   main.innerHTML = `
@@ -2515,6 +2953,7 @@ if('serviceWorker' in navigator){
 }
 function arrancarApp(){
   render();
+  setInterval(()=>refrescarBalanceSiVisible(), 60000);
   updateConnStatus();
   verificarRecordatorioRespaldo();
   if(navigator.onLine) traerActualizacionesGoogleSheets(false);
